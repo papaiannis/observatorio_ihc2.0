@@ -1,70 +1,105 @@
 import { Request, Response, NextFunction } from 'express';
 import { fileTypeFromBuffer } from 'file-type';
 import { env } from '../infrastructure/config';
-import { InvalidImageError, ImageTooLargeError } from '../infrastructure/AppError';
+import { AppError, InvalidImageError, ImageTooLargeError } from '../infrastructure/AppError';
 import { identificarAnimalService } from '../services/identificacion.service';
-import { observationRepository } from '../models/ObservationRepository';
+import { sightingRepository } from '../models/ObservationRepository';
 
 /**
- * Endpoint POST /api/v1/identificacion/identificar
- * Se espera que el archivo esté en req.file (colocado por multer en la ruta)
+ * POST /api/v1/identificacion/identificar
+ *
+ * Flujo:
+ *  1. Valida el archivo (tamaño + MIME real)
+ *  2. Ejecuta la identificación con IA en paralelo (HF + Gemma)
+ *  3. Sube la imagen a Supabase Storage          ← TODO (Step 3)
+ *  4. Persiste el avistamiento en `sightings`
+ *  5. Retorna el resultado al cliente
  */
-export async function identificarAnimalController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function identificarAnimalController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const file = req.file;
 
     if (!file) {
-      throw new InvalidImageError("No se ha proporcionado ninguna imagen.");
+      throw new InvalidImageError('No se ha proporcionado ninguna imagen.');
     }
 
     const imagenBuffer = file.buffer;
 
     // --- Paso 1: Validar tamaño ---
     if (imagenBuffer.length > env.MAX_IMAGE_SIZE_BYTES) {
-      const maxMb = env.MAX_IMAGE_SIZE_BYTES / 1048576;
-      throw new ImageTooLargeError(`La imagen excede el tamaño máximo permitido de ${Math.round(maxMb)} MB.`);
-    }
-
-    // --- Paso 2: Validar MIME type real (Security Check) ---
-    const fileType = await fileTypeFromBuffer(imagenBuffer);
-    const mimeTypeReal = fileType?.mime;
-    
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    
-    if (!mimeTypeReal || !allowedMimeTypes.includes(mimeTypeReal)) {
-      throw new InvalidImageError(
-        `Formato de imagen no soportado: '${mimeTypeReal || 'desconocido'}'. Formatos permitidos: JPEG, PNG, WebP.`
+      const maxMb = Math.round(env.MAX_IMAGE_SIZE_BYTES / 1_048_576);
+      throw new ImageTooLargeError(
+        `La imagen excede el tamaño máximo permitido de ${maxMb} MB.`
       );
     }
 
-    console.log(`Imagen recibida y validada | nombre=${file.originalname} | mime=${mimeTypeReal} | tamaño=${imagenBuffer.length} bytes`);
+    // --- Paso 2: Validar MIME type real (no confiar en Content-Type del cliente) ---
+    const fileType = await fileTypeFromBuffer(imagenBuffer);
+    const mimeTypeReal = fileType?.mime;
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
 
-    // --- Paso 3: Ejecutar el caso de uso (identificación paralela) ---
+    if (!mimeTypeReal || !allowedMimes.includes(mimeTypeReal)) {
+      throw new InvalidImageError(
+        `Formato no soportado: '${mimeTypeReal ?? 'desconocido'}'. Permitidos: JPEG, PNG, WebP.`
+      );
+    }
+
+    console.log(
+      `[Controller] Imagen validada | nombre=${file.originalname} | mime=${mimeTypeReal} | tamaño=${imagenBuffer.length}b`
+    );
+
+    // --- Paso 3: Ejecutar pipeline de IA (HF + Gemma en paralelo) ---
     const resultado = await identificarAnimalService(imagenBuffer, mimeTypeReal);
 
-    // --- Paso 4 (Integración Supabase): Guardar la observación en DB ---
-    // Usamos datos dummy de GPS en el controller si no vienen en el form,
-    // pero si vinieran en req.body (ej. req.body.lat), los mapeamos.
+    // --- Paso 4: Subir imagen a Supabase Storage ---
+    // TODO: Implementar subida al bucket `observaciones-media`
+    // Por ahora se usa una URL placeholder hasta conectar el Storage client.
+    const photoUrl = `https://${env.SUPABASE_URL?.replace('https://', '')}/storage/v1/object/public/observaciones-media/${Date.now()}-${file.originalname}`;
+
+    // --- Paso 5: Leer y validar coordenadas GPS del form-data ---
+    // decimal_latitude y decimal_longitude son NOT NULL en la DB.
+    // La app móvil debe garantizar que siempre vengan antes de enviar la foto.
     const lat = req.body.lat ? parseFloat(req.body.lat) : undefined;
     const lng = req.body.lng ? parseFloat(req.body.lng) : undefined;
-    const accuracy = req.body.accuracy ? parseFloat(req.body.accuracy) : undefined;
 
-    // TODO: La subida de imagen al storage (bucket de Supabase) debería ocurrir aquí
-    // y pasar la URL pública al repositorio. Usamos una dummy url por ahora.
-    const fakeImageUrl = "https://bucket.supabase.com/dummy.jpg";
+    if (lat === undefined || lng === undefined || isNaN(lat) || isNaN(lng)) {
+      throw new AppError(
+        'Las coordenadas GPS (lat, lng) son requeridas para registrar un avistamiento.',
+        400
+      );
+    }
 
-    await observationRepository.createObservation({
+    const accuracy   = req.body.accuracy    ? parseFloat(req.body.accuracy)  : undefined;
+    const observedAt = req.body.observed_at ? (req.body.observed_at as string) : new Date().toISOString();
+
+    // --- Paso 6: Persistir el avistamiento en Supabase ---
+    const sighting = await sightingRepository.createSighting({
       resultado,
-      latitude: lat,
-      longitude: lng,
-      accuracy: accuracy,
-      imageUrl: fakeImageUrl
+      photoUrl,
+      observedAt,
+      latitude:   lat,
+      longitude:  lng,
+      gpsAccuracy: accuracy,
+      preliminarySpecies: req.body.preliminary_species,
     });
 
-    // --- Paso 5: Responder al cliente ---
-    res.status(200).json(resultado);
+    // --- Paso 7: Responder al cliente ---
+    res.status(200).json({
+      sighting_id: sighting.id,
+      especie_principal: {
+        etiqueta:   resultado.especie_principal.etiqueta,
+        confianza:  resultado.especie_principal.confianza,
+      },
+      alternativas:            resultado.alternativas,
+      requiere_revision_humana: resultado.requiere_revision_humana,
+      modelo_usado:            resultado.modelo_usado,
+      gemma_respuesta:         resultado.gemma_respuesta,
+    });
   } catch (error) {
-    // Pasar error al global error handler de Express
     next(error);
   }
 }

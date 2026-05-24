@@ -2,7 +2,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { env } from '../infrastructure/config';
 import { AppError } from '../infrastructure/AppError';
 
-// Definición de dominio
+// ============================================================
+// Tipos que mapean 1:1 con las tablas de Supabase
+// ============================================================
+
+/** Output del pipeline de IA (Hugging Face + Gemma) */
 export interface IResultadoIdentificacion {
   especie_principal: {
     etiqueta: string;
@@ -17,95 +21,342 @@ export interface IResultadoIdentificacion {
   gemma_respuesta?: string;
 }
 
-export interface IObservationInput {
+/**
+ * Input para crear un nuevo avistamiento.
+ * Las coordenadas GPS son requeridas: la columna `geom` y `decimal_lat/lng`
+ * son NOT NULL en la DB. Si la app no tiene GPS, no debe permitir el envío.
+ */
+export interface ISightingInput {
+  userId?: string | undefined;
   resultado: IResultadoIdentificacion;
-  latitude?: number | undefined;
-  longitude?: number | undefined;
-  accuracy?: number | undefined; // Capturado por el GPS del dispositivo
-  imageUrl: string;
+  photoUrl: string;
+  audioUrl?: string | undefined;
+  preliminarySpecies?: string | undefined;
+  observedAt: string;            // ISO 8601
+  latitude: number;              // decimal_latitude — requerido (NOT NULL en DB)
+  longitude: number;             // decimal_longitude — requerido (NOT NULL en DB)
+  gpsAccuracy?: number | undefined;
 }
 
+/** Fila completa de la tabla `sightings` */
+export interface ISighting {
+  id: string;
+  user_id: string | null;
+  photo_url: string;
+  audio_url: string | null;
+  preliminary_species: string | null;
+  validated_species_id: string | null;
+  ai_especie_sugerida: string;
+  ai_confianza: number;
+  ai_requiere_revision: boolean;
+  ai_modelo: string;
+  ai_alternativas: object;
+  ai_gemma_respuesta: string | null;
+  status: 'pendiente' | 'validado' | 'en_revision';
+  observed_at: string;
+  decimal_latitude: number;
+  decimal_longitude: number;
+  gps_accuracy: number | null;
+  metadata_edited: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fila de la tabla `likes` */
+export interface ILike {
+  user_id: string;
+  sighting_id: string;
+  created_at: string;
+}
+
+/** Fila de la tabla `comments` */
+export interface IComment {
+  id: string;
+  sighting_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+// ============================================================
+// Repositorio principal: Avistamientos
+// ============================================================
+
 /**
- * Repositorio para guardar y consultar Observaciones de Vida Silvestre.
- * 
- * Cumple con la regla global: PostGIS como Estándar.
- * Utiliza llamadas RPC (Stored Procedures) a Supabase o SQL directo si se usa 'pg',
- * para evitar procesar ST_DWithin en el servidor Node.
+ * Repositorio para la tabla `sightings`.
+ *
+ * Reglas de arquitectura aplicadas:
+ * - `geom` es generado automáticamente por el trigger `trg_update_sighting_geom`.
+ * - Cálculos espaciales delegados a PostGIS vía RPC (ST_DWithin).
+ * - Imágenes/audios siempre como URLs de Storage, nunca como BLOB.
  */
-export class ObservationRepository {
+export class SightingRepository {
   private supabase: SupabaseClient | null = null;
 
   constructor() {
     if (env.SUPABASE_URL && env.SUPABASE_KEY) {
       this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
     } else {
-      console.warn("Supabase credentials not configured. ObservationRepository will mock responses.");
+      console.warn('[SightingRepository] Credenciales de Supabase no configuradas. Usando modo mock.');
     }
   }
 
   /**
-   * Guarda una observación en la base de datos usando PostGIS.
-   * La validación estricta de variables (Zod) debe realizarse en el controller/service antes de llamar aquí.
+   * Inserta un nuevo avistamiento en la tabla `sightings`.
+   * El trigger de Postgres genera `geom` automáticamente desde lat/lng.
    */
-  async createObservation(data: IObservationInput): Promise<any> {
+  async createSighting(data: ISightingInput): Promise<ISighting> {
     if (!this.supabase) {
-      // Mock para desarrollo sin BD
-      return { id: 'mock-id-123', ...data };
+      return this._mockSighting(data);
     }
 
-    // El objeto a guardar en Supabase.
-    // Nota: para guardar GEOGRAPHY(Point, 4326), usualmente Supabase JS 
-    // requiere usar una función RPC o usar la extensión PostGIS y formato WKT (Well-Known Text).
-    const pointWkt = (data.latitude !== undefined && data.longitude !== undefined) 
-      ? `POINT(${data.longitude} ${data.latitude})` 
-      : null;
-
     const { data: result, error } = await this.supabase
-      .from('observaciones')
+      .from('sightings')
       .insert({
-        especie_principal: data.resultado.especie_principal.etiqueta,
-        confianza: data.resultado.especie_principal.confianza,
-        requiere_revision: data.resultado.requiere_revision_humana,
-        gps_accuracy: data.accuracy,
-        // Si tienes una columna `location` de tipo GEOGRAPHY(Point, 4326), supabase-js requiere que uses ST_GeomFromText o que pases el WKT dependiendo del setup, 
-        // o mejor aún: usar un RPC.
-        location: pointWkt,
-        image_url: data.imageUrl,
-        metadata: data.resultado // Guardar el resto en un JSONB
+        user_id:              data.userId ?? null,
+        photo_url:            data.photoUrl,
+        audio_url:            data.audioUrl ?? null,
+        preliminary_species:  data.preliminarySpecies ?? null,
+        // Output de IA
+        ai_especie_sugerida:  data.resultado.especie_principal.etiqueta,
+        ai_confianza:         data.resultado.especie_principal.confianza,
+        ai_requiere_revision: data.resultado.requiere_revision_humana,
+        ai_modelo:            data.resultado.modelo_usado,
+        ai_alternativas:      data.resultado.alternativas,     // JSONB
+        ai_gemma_respuesta:   data.resultado.gemma_respuesta ?? null,
+        // Ciclo de vida
+        status: 'pendiente' as const,
+        // Geolocalización (trigger crea `geom` desde estas dos columnas)
+        observed_at:          data.observedAt,
+        decimal_latitude:     data.latitude,
+        decimal_longitude:    data.longitude,
+        gps_accuracy:         data.gpsAccuracy ?? null,
+        metadata_edited:      false,
       })
       .select()
       .single();
 
     if (error) {
-      throw new AppError(`Error insertando en Supabase: ${error.message}`, 500);
+      throw new AppError(`Error al guardar avistamiento en Supabase: ${error.message}`, 500);
     }
 
-    return result;
+    return result as ISighting;
   }
 
   /**
-   * Obtiene observaciones cercanas a una coordenada usando PostGIS nativo (ST_DWithin).
-   * @param lat Latitud
-   * @param lng Longitud
-   * @param radiusMeters Radio de búsqueda en metros (ST_DWithin usa metros para Geography)
+   * Retorna avistamientos dentro de un radio usando PostGIS ST_DWithin.
+   * Delega el cálculo geoespacial a la función RPC `get_nearby_observations`.
    */
-  async getNearbyObservations(lat: number, lng: number, radiusMeters: number): Promise<any[]> {
+  async getNearbySightings(lat: number, lng: number, radiusMeters: number): Promise<ISighting[]> {
     if (!this.supabase) return [];
 
-    // Priorizando funciones nativas de PostGIS.
-    // En Supabase, esto se logra mejor invocando una función SQL (Stored Procedure) previamente creada.
     const { data, error } = await this.supabase.rpc('get_nearby_observations', {
       lat,
       lng,
-      radius_meters: radiusMeters
+      radius_meters: radiusMeters,
     });
 
     if (error) {
-      throw new AppError(`Error ejecutando PostGIS ST_DWithin: ${error.message}`, 500);
+      throw new AppError(`Error en PostGIS ST_DWithin (RPC): ${error.message}`, 500);
     }
 
-    return data;
+    return (data ?? []) as ISighting[];
+  }
+
+  /**
+   * Valida un avistamiento asignando una especie confirmada.
+   * Solo especialistas/administradores pueden llamar este método (via RLS de Supabase).
+   */
+  async validateSighting(
+    sightingId: string,
+    validatedSpeciesId: string,
+    newStatus: 'validado' | 'en_revision'
+  ): Promise<ISighting> {
+    if (!this.supabase) {
+      throw new AppError('Supabase no configurado. No se puede validar.', 500);
+    }
+
+    const { data, error } = await this.supabase
+      .from('sightings')
+      .update({
+        validated_species_id: validatedSpeciesId,
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sightingId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new AppError(`Error al validar avistamiento: ${error.message}`, 500);
+    }
+
+    return data as ISighting;
+  }
+
+  private _mockSighting(data: ISightingInput): ISighting {
+    console.warn('[SightingRepository] Modo mock: retornando objeto simulado.');
+    return {
+      id: 'mock-id-' + Date.now(),
+      user_id: data.userId ?? null,
+      photo_url: data.photoUrl,
+      audio_url: data.audioUrl ?? null,
+      preliminary_species: data.preliminarySpecies ?? null,
+      validated_species_id: null,
+      ai_especie_sugerida: data.resultado.especie_principal.etiqueta,
+      ai_confianza: data.resultado.especie_principal.confianza,
+      ai_requiere_revision: data.resultado.requiere_revision_humana,
+      ai_modelo: data.resultado.modelo_usado,
+      ai_alternativas: data.resultado.alternativas,
+      ai_gemma_respuesta: data.resultado.gemma_respuesta ?? null,
+      status: 'pendiente',
+      observed_at: data.observedAt,
+      decimal_latitude: data.latitude,
+      decimal_longitude: data.longitude,
+      gps_accuracy: data.gpsAccuracy ?? null,
+      metadata_edited: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
   }
 }
 
-export const observationRepository = new ObservationRepository();
+// ============================================================
+// Repositorio: Likes
+// ============================================================
+
+/**
+ * Repositorio para la tabla `likes`.
+ * Usa PRIMARY KEY compuesta (user_id, sighting_id) para garantizar
+ * que cada usuario solo tenga un like por avistamiento.
+ */
+export class LikeRepository {
+  private supabase: SupabaseClient | null = null;
+
+  constructor() {
+    if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+      this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
+    }
+  }
+
+  /** Agrega un like. Si ya existe, Supabase retorna error de PK duplicada (ignorado). */
+  async addLike(userId: string, sightingId: string): Promise<void> {
+    if (!this.supabase) return;
+
+    const { error } = await this.supabase
+      .from('likes')
+      .upsert({ user_id: userId, sighting_id: sightingId }, { onConflict: 'user_id,sighting_id' });
+
+    if (error) {
+      throw new AppError(`Error al agregar like: ${error.message}`, 500);
+    }
+  }
+
+  /** Elimina un like de un usuario para un avistamiento específico. */
+  async removeLike(userId: string, sightingId: string): Promise<void> {
+    if (!this.supabase) return;
+
+    const { error } = await this.supabase
+      .from('likes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('sighting_id', sightingId);
+
+    if (error) {
+      throw new AppError(`Error al eliminar like: ${error.message}`, 500);
+    }
+  }
+
+  /** Retorna la cantidad de likes de un avistamiento. */
+  async getLikeCount(sightingId: string): Promise<number> {
+    if (!this.supabase) return 0;
+
+    const { count, error } = await this.supabase
+      .from('likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('sighting_id', sightingId);
+
+    if (error) {
+      throw new AppError(`Error al contar likes: ${error.message}`, 500);
+    }
+
+    return count ?? 0;
+  }
+}
+
+// ============================================================
+// Repositorio: Comentarios
+// ============================================================
+
+/**
+ * Repositorio para la tabla `comments`.
+ */
+export class CommentRepository {
+  private supabase: SupabaseClient | null = null;
+
+  constructor() {
+    if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+      this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
+    }
+  }
+
+  /** Inserta un nuevo comentario en un avistamiento. */
+  async addComment(userId: string, sightingId: string, content: string): Promise<IComment> {
+    if (!this.supabase) {
+      throw new AppError('Supabase no configurado.', 500);
+    }
+
+    const { data, error } = await this.supabase
+      .from('comments')
+      .insert({ user_id: userId, sighting_id: sightingId, content })
+      .select()
+      .single();
+
+    if (error) {
+      throw new AppError(`Error al agregar comentario: ${error.message}`, 500);
+    }
+
+    return data as IComment;
+  }
+
+  /**
+   * Retorna todos los comentarios de un avistamiento.
+   * Ordenados por fecha de creación ascendente (hilo cronológico).
+   */
+  async getCommentsBySighting(sightingId: string): Promise<IComment[]> {
+    if (!this.supabase) return [];
+
+    const { data, error } = await this.supabase
+      .from('comments')
+      .select('*')
+      .eq('sighting_id', sightingId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new AppError(`Error al obtener comentarios: ${error.message}`, 500);
+    }
+
+    return (data ?? []) as IComment[];
+  }
+
+  /** Elimina un comentario. Solo el autor puede borrar el suyo (via RLS en Supabase). */
+  async deleteComment(commentId: string): Promise<void> {
+    if (!this.supabase) return;
+
+    const { error } = await this.supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (error) {
+      throw new AppError(`Error al eliminar comentario: ${error.message}`, 500);
+    }
+  }
+}
+
+// ============================================================
+// Singletons reutilizables en toda la app
+// ============================================================
+export const sightingRepository = new SightingRepository();
+export const likeRepository     = new LikeRepository();
+export const commentRepository  = new CommentRepository();
