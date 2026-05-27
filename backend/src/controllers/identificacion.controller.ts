@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { fileTypeFromBuffer } from 'file-type';
+import axios from 'axios';
 import { env } from '../infrastructure/config';
 import { AppError, InvalidImageError, ImageTooLargeError } from '../infrastructure/AppError';
 import { identificarAnimalService } from '../services/identificacion.service';
@@ -8,12 +9,13 @@ import { sightingRepository } from '../models/ObservationRepository';
 /**
  * POST /api/v1/identificacion/identificar
  *
- * Flujo:
- *  1. Valida el archivo (tamaño + MIME real)
- *  2. Ejecuta la identificación con IA en paralelo (HF + Gemma)
- *  3. Sube la imagen a Supabase Storage          ← TODO (Step 3)
- *  4. Persiste el avistamiento en `sightings`
- *  5. Retorna el resultado al cliente
+ * Flujo Híbrido:
+ *  1. Recibe sighting_id y photo_url del cliente (el cliente ya subió la foto y creó el registro en DB).
+ *  2. Descarga la imagen desde photo_url.
+ *  3. Valida el archivo (tamaño + MIME real).
+ *  4. Ejecuta la identificación con IA en paralelo (HF + Gemma).
+ *  5. Actualiza el avistamiento en `sightings` con los resultados de la IA usando privilegios de admin.
+ *  6. Retorna el resultado al cliente.
  */
 export async function identificarAnimalController(
   req: Request,
@@ -21,73 +23,46 @@ export async function identificarAnimalController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const file = req.file;
+    const { sighting_id, photo_url } = req.body;
 
-    if (!file) {
-      throw new InvalidImageError('No se ha proporcionado ninguna imagen.');
+    if (!sighting_id || !photo_url) {
+      throw new AppError('Faltan parámetros requeridos: sighting_id o photo_url.', 400);
     }
 
-    const imagenBuffer = file.buffer;
+    // --- Paso 1: Descargar imagen ---
+    let imageResponse;
+    try {
+      imageResponse = await axios.get(photo_url, { responseType: 'arraybuffer', timeout: 15000 });
+    } catch (error) {
+      throw new AppError('No se pudo descargar la imagen desde la URL proporcionada.', 422);
+    }
 
-    // --- Paso 1: Validar tamaño ---
+    const imagenBuffer = Buffer.from(imageResponse.data, 'binary');
+
+    // --- Paso 2: Validar tamaño ---
     if (imagenBuffer.length > env.MAX_IMAGE_SIZE_BYTES) {
       const maxMb = Math.round(env.MAX_IMAGE_SIZE_BYTES / 1_048_576);
-      throw new ImageTooLargeError(
-        `La imagen excede el tamaño máximo permitido de ${maxMb} MB.`
-      );
+      throw new ImageTooLargeError(`La imagen excede el tamaño máximo permitido de ${maxMb} MB.`);
     }
 
-    // --- Paso 2: Validar MIME type real (no confiar en Content-Type del cliente) ---
+    // --- Paso 3: Validar MIME type real ---
     const fileType = await fileTypeFromBuffer(imagenBuffer);
     const mimeTypeReal = fileType?.mime;
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
 
     if (!mimeTypeReal || !allowedMimes.includes(mimeTypeReal)) {
-      throw new InvalidImageError(
-        `Formato no soportado: '${mimeTypeReal ?? 'desconocido'}'. Permitidos: JPEG, PNG, WebP.`
-      );
+      throw new InvalidImageError(`Formato no soportado: '${mimeTypeReal ?? 'desconocido'}'. Permitidos: JPEG, PNG, WebP.`);
     }
 
-    console.log(
-      `[Controller] Imagen validada | nombre=${file.originalname} | mime=${mimeTypeReal} | tamaño=${imagenBuffer.length}b`
-    );
+    console.log(`[Controller] Imagen descargada y validada | mime=${mimeTypeReal} | tamaño=${imagenBuffer.length}b`);
 
-    // --- Paso 3: Ejecutar pipeline de IA (HF + Gemma en paralelo) ---
+    // --- Paso 4: Ejecutar pipeline de IA ---
     const resultado = await identificarAnimalService(imagenBuffer, mimeTypeReal);
 
-    // --- Paso 4: Subir imagen a Supabase Storage ---
-    // TODO: Implementar subida al bucket `observaciones-media`
-    // Por ahora se usa una URL placeholder hasta conectar el Storage client.
-    const photoUrl = `https://${env.SUPABASE_URL?.replace('https://', '')}/storage/v1/object/public/observaciones-media/${Date.now()}-${file.originalname}`;
+    // --- Paso 5: Actualizar el avistamiento en Supabase ---
+    const sighting = await sightingRepository.updateSightingWithAIResult(sighting_id, resultado);
 
-    // --- Paso 5: Leer y validar coordenadas GPS del form-data ---
-    // decimal_latitude y decimal_longitude son NOT NULL en la DB.
-    // La app móvil debe garantizar que siempre vengan antes de enviar la foto.
-    const lat = req.body.lat ? parseFloat(req.body.lat) : undefined;
-    const lng = req.body.lng ? parseFloat(req.body.lng) : undefined;
-
-    if (lat === undefined || lng === undefined || isNaN(lat) || isNaN(lng)) {
-      throw new AppError(
-        'Las coordenadas GPS (lat, lng) son requeridas para registrar un avistamiento.',
-        400
-      );
-    }
-
-    const accuracy   = req.body.accuracy    ? parseFloat(req.body.accuracy)  : undefined;
-    const observedAt = req.body.observed_at ? (req.body.observed_at as string) : new Date().toISOString();
-
-    // --- Paso 6: Persistir el avistamiento en Supabase ---
-    const sighting = await sightingRepository.createSighting({
-      resultado,
-      photoUrl,
-      observedAt,
-      latitude:   lat,
-      longitude:  lng,
-      gpsAccuracy: accuracy,
-      preliminarySpecies: req.body.preliminary_species,
-    });
-
-    // --- Paso 7: Responder al cliente ---
+    // --- Paso 6: Responder al cliente ---
     res.status(200).json({
       sighting_id: sighting.id,
       especie_principal: {
@@ -103,3 +78,4 @@ export async function identificarAnimalController(
     next(error);
   }
 }
+

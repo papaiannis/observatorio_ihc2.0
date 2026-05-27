@@ -21,22 +21,7 @@ export interface IResultadoIdentificacion {
   gemma_respuesta?: string;
 }
 
-/**
- * Input para crear un nuevo avistamiento.
- * Las coordenadas GPS son requeridas: la columna `geom` y `decimal_lat/lng`
- * son NOT NULL en la DB. Si la app no tiene GPS, no debe permitir el envío.
- */
-export interface ISightingInput {
-  userId?: string | undefined;
-  resultado: IResultadoIdentificacion;
-  photoUrl: string;
-  audioUrl?: string | undefined;
-  preliminarySpecies?: string | undefined;
-  observedAt: string;            // ISO 8601
-  latitude: number;              // decimal_latitude — requerido (NOT NULL en DB)
-  longitude: number;             // decimal_longitude — requerido (NOT NULL en DB)
-  gpsAccuracy?: number | undefined;
-}
+// El frontend ahora maneja la creación de avistamientos directamente.
 
 /** Fila completa de la tabla `sightings` */
 export interface ISighting {
@@ -102,45 +87,36 @@ export class SightingRepository {
   }
 
   /**
-   * Inserta un nuevo avistamiento en la tabla `sightings`.
-   * El trigger de Postgres genera `geom` automáticamente desde lat/lng.
+   * Actualiza un avistamiento existente con los resultados de la IA.
+   * Utiliza la Service Role Key (env.SUPABASE_KEY) para saltarse las políticas RLS
+   * ya que el usuario normal no tiene permisos para actualizar las columnas de IA.
    */
-  async createSighting(data: ISightingInput): Promise<ISighting> {
+  async updateSightingWithAIResult(sightingId: string, result: IResultadoIdentificacion): Promise<ISighting> {
     if (!this.supabase) {
-      return this._mockSighting(data);
+      throw new AppError('Supabase no configurado en entorno remoto.', 500);
     }
 
-    const { data: result, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from('sightings')
-      .insert({
-        user_id:              data.userId ?? null,
-        photo_url:            data.photoUrl,
-        audio_url:            data.audioUrl ?? null,
-        preliminary_species:  data.preliminarySpecies ?? null,
-        // Output de IA
-        ai_especie_sugerida:  data.resultado.especie_principal.etiqueta,
-        ai_confianza:         data.resultado.especie_principal.confianza,
-        ai_requiere_revision: data.resultado.requiere_revision_humana,
-        ai_modelo:            data.resultado.modelo_usado,
-        ai_alternativas:      data.resultado.alternativas,     // JSONB
-        ai_gemma_respuesta:   data.resultado.gemma_respuesta ?? null,
-        // Ciclo de vida
-        status: 'pendiente' as const,
-        // Geolocalización (trigger crea `geom` desde estas dos columnas)
-        observed_at:          data.observedAt,
-        decimal_latitude:     data.latitude,
-        decimal_longitude:    data.longitude,
-        gps_accuracy:         data.gpsAccuracy ?? null,
-        metadata_edited:      false,
+      .update({
+        ai_especie_sugerida:  result.especie_principal.etiqueta,
+        ai_confianza:         result.especie_principal.confianza,
+        ai_requiere_revision: result.requiere_revision_humana,
+        ai_modelo:            result.modelo_usado,
+        ai_alternativas:      result.alternativas,
+        ai_gemma_respuesta:   result.gemma_respuesta ?? null,
+        status:               result.requiere_revision_humana ? 'en_revision' : 'pendiente',
+        updated_at:           new Date().toISOString(),
       })
+      .eq('id', sightingId)
       .select()
       .single();
 
     if (error) {
-      throw new AppError(`Error al guardar avistamiento en Supabase: ${error.message}`, 500);
+      throw new AppError(`Error al actualizar avistamiento con IA: ${error.message}`, 500);
     }
 
-    return result as ISighting;
+    return data as ISighting;
   }
 
   /**
@@ -194,30 +170,8 @@ export class SightingRepository {
     return data as ISighting;
   }
 
-  private _mockSighting(data: ISightingInput): ISighting {
-    console.warn('[SightingRepository] Modo mock: retornando objeto simulado.');
-    return {
-      id: 'mock-id-' + Date.now(),
-      user_id: data.userId ?? null,
-      photo_url: data.photoUrl,
-      audio_url: data.audioUrl ?? null,
-      preliminary_species: data.preliminarySpecies ?? null,
-      validated_species_id: null,
-      ai_especie_sugerida: data.resultado.especie_principal.etiqueta,
-      ai_confianza: data.resultado.especie_principal.confianza,
-      ai_requiere_revision: data.resultado.requiere_revision_humana,
-      ai_modelo: data.resultado.modelo_usado,
-      ai_alternativas: data.resultado.alternativas,
-      ai_gemma_respuesta: data.resultado.gemma_respuesta ?? null,
-      status: 'pendiente',
-      observed_at: data.observedAt,
-      decimal_latitude: data.latitude,
-      decimal_longitude: data.longitude,
-      gps_accuracy: data.gpsAccuracy ?? null,
-      metadata_edited: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+  private _mockSighting(): ISighting {
+    throw new AppError('Modo mock deshabilitado para actualizaciones.', 500);
   }
 }
 
