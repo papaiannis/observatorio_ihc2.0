@@ -12,22 +12,6 @@ export interface IResultadoIdentificacion {
     modelo_usado: string;
     gemma_respuesta?: string;
 }
-/**
- * Input para crear un nuevo avistamiento.
- * Las coordenadas GPS son requeridas: la columna `geom` y `decimal_lat/lng`
- * son NOT NULL en la DB. Si la app no tiene GPS, no debe permitir el envío.
- */
-export interface ISightingInput {
-    userId?: string | undefined;
-    resultado: IResultadoIdentificacion;
-    photoUrl: string;
-    audioUrl?: string | undefined;
-    preliminarySpecies?: string | undefined;
-    observedAt: string;
-    latitude: number;
-    longitude: number;
-    gpsAccuracy?: number | undefined;
-}
 /** Fila completa de la tabla `sightings` */
 export interface ISighting {
     id: string;
@@ -77,10 +61,11 @@ export declare class SightingRepository {
     private supabase;
     constructor();
     /**
-     * Inserta un nuevo avistamiento en la tabla `sightings`.
-     * El trigger de Postgres genera `geom` automáticamente desde lat/lng.
+     * Actualiza un avistamiento existente con los resultados de la IA.
+     * Utiliza la Service Role Key (env.SUPABASE_KEY) para saltarse las políticas RLS
+     * ya que el usuario normal no tiene permisos para actualizar las columnas de IA.
      */
-    createSighting(data: ISightingInput): Promise<ISighting>;
+    updateSightingWithAIResult(sightingId: string, result: IResultadoIdentificacion): Promise<ISighting>;
     /**
      * Retorna avistamientos dentro de un radio usando PostGIS ST_DWithin.
      * Delega el cálculo geoespacial a la función RPC `get_nearby_observations`.
