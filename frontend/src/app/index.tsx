@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Configura tu IP local aquí si pruebas en dispositivo físico. 
 // 10.0.2.2 es para el emulador de Android.
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.19:8000/api/v1';  //Cambiar por la ip de la computadora
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.4:8000/api/v1';  //Cambiar por la ip de la computadora
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
