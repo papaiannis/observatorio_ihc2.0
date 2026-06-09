@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
-import { env } from '../infrastructure/config';
+import { env } from '../infrastructure/config.js';
 
 // Inicialización limpia con la clave ANON (suficiente para autenticar usuarios)
 const supabase = createClient(

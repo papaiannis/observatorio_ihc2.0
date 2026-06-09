@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import NodeCache from 'node-cache';
-import { env } from '../infrastructure/config';
-import { AppError } from '../infrastructure/AppError';
+import { env } from '../infrastructure/config.js';
+import { AppError } from '../infrastructure/AppError.js';
 
 // Caché global: máximo 100 elementos, 20 minutos de TTL (1200 segundos)
 const streamsCache = new NodeCache({ stdTTL: 1200, maxKeys: 100 });

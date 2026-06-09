@@ -1,5 +1,5 @@
-import app from './app';
-import { env } from './infrastructure/config';
+import app from './app.js';
+import { env } from './infrastructure/config.js';
 
 app.listen(env.PORT, () => {
   console.log(`🚀 BioLife API (Node.js) iniciada en el puerto ${env.PORT}`);

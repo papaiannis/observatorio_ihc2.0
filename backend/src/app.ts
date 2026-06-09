@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import apiRouter from './api/router';
-import { AppError } from './infrastructure/AppError';
+import apiRouter from './api/router.js';
+import { AppError } from './infrastructure/AppError.js';
 
 const app = express();
 

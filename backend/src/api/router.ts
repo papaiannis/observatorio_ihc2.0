@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import identificacionRoutes from './routes/identificacion.routes';
-// import wildlifeRoutes from './routes/wildlife.routes'; // TODO: Implementar su propio controller
+import identificacionRoutes from './routes/identificacion.routes.js';
+// import wildlifeRoutes from './routes/wildlife.routes.js'; // TODO: Implementar su propio controller
 
 const apiRouter = Router();
 

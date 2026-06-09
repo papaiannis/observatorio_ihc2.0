@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { env } from '../infrastructure/config';
-import { IdentificationFailedError } from '../infrastructure/AppError';
-import { IResultadoIdentificacion } from '../models/ObservationRepository';
+import { env } from '../infrastructure/config.js';
+import { IdentificationFailedError } from '../infrastructure/AppError.js';
+import { IResultadoIdentificacion } from '../models/ObservationRepository.js';
 
 // Define el schema de predicción cruda que devuelve HF
 interface HFPrediction {

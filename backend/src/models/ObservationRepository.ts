@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { env } from '../infrastructure/config';
-import { AppError } from '../infrastructure/AppError';
+import { env } from '../infrastructure/config.js';
+import { AppError } from '../infrastructure/AppError.js';
 
 // ============================================================
 // Tipos que mapean 1:1 con las tablas de Supabase

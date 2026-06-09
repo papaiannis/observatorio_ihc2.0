@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { fileTypeFromBuffer } from 'file-type';
 import axios from 'axios';
-import { env } from '../infrastructure/config';
-import { AppError, InvalidImageError, ImageTooLargeError } from '../infrastructure/AppError';
-import { identificarAnimalService } from '../services/identificacion.service';
-import { sightingRepository } from '../models/ObservationRepository';
+import { env } from '../infrastructure/config.js';
+import { AppError, InvalidImageError, ImageTooLargeError } from '../infrastructure/AppError.js';
+import { identificarAnimalService } from '../services/identificacion.service.js';
+import { sightingRepository } from '../models/ObservationRepository.js';
 
 /**
  * POST /api/v1/identificacion/identificar
