@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Configura tu IP local aquí si pruebas en dispositivo físico. 
 // 10.0.2.2 es para el emulador de Android.
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://observatorio-ihc2-0.vercel.app/api/v1';  // Cambiar a localhost si pruebas en dev local
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ihc-2-0.onrender.com/api/v1';  // Cambiar a localhost si pruebas en dev local
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

@@ -16,7 +16,7 @@ function walk(dir) {
   return results;
 }
 
-const files = walk('./src').concat(walk('./api'));
+const files = walk('./src');
 
 for (const file of files) {
   let content = fs.readFileSync(file, 'utf8');
