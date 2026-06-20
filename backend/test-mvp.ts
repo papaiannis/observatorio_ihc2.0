@@ -7,7 +7,8 @@ dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
-const API_URL = 'http://localhost:8000/api';
+// Toma la URL de la API desde el .env o usa localhost por defecto
+const API_URL = process.env.API_URL || 'http://localhost:8000/api/v1';
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing SUPABASE_URL or SUPABASE_KEY");
