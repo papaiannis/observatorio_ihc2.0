@@ -1,10 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '../../infrastructure/config.js';
+import { supabase } from '../../infrastructure/supabase.js';
 import { AppError } from '../../infrastructure/AppError.js';
-
-// Inicializamos el cliente de Supabase
-const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_KEY!);
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
