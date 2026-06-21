@@ -5,12 +5,12 @@ import { env } from '../infrastructure/config.js';
 
 interface ContributionData {
   investigation_id: string;
-  preliminary_species?: string;
-  survey_answers?: string;
-  observed_at?: string;
-  latitude?: number;
-  longitude?: number;
-  gps_accuracy?: number;
+  preliminary_species?: string | undefined;
+  survey_answers?: string | undefined;
+  observed_at?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  gps_accuracy?: number | undefined;
 }
 
 export class ContributionService {

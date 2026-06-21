@@ -1,13 +1,12 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const identificacion_routes_1 = __importDefault(require("./routes/identificacion.routes"));
-// import wildlifeRoutes from './routes/wildlife.routes'; // TODO: Implementar su propio controller
-const apiRouter = (0, express_1.Router)();
-apiRouter.use('/identificacion', identificacion_routes_1.default);
-// apiRouter.use('/wildlife', wildlifeRoutes);
-exports.default = apiRouter;
+import { Router } from 'express';
+import identificacionRoutes from './routes/identificacion.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import investigationRoutes from './routes/investigation.routes.js';
+import contributionRoutes from './routes/contribution.routes.js';
+const apiRouter = Router();
+apiRouter.use('/identificacion', identificacionRoutes);
+apiRouter.use('/investigations', investigationRoutes);
+apiRouter.use('/contributions', contributionRoutes);
+apiRouter.use('/', authRoutes);
+export default apiRouter;
 //# sourceMappingURL=router.js.map

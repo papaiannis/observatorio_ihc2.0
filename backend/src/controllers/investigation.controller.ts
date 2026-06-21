@@ -13,7 +13,7 @@ export const getActiveInvestigations = async (req: Request, res: Response, next:
 export const getInvestigationById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const investigation = await InvestigationService.getInvestigationById(id);
+    const investigation = await InvestigationService.getInvestigationById(id as string);
     res.json(investigation);
   } catch (error) {
     next(error);

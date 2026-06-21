@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.IdentificationFailedError = exports.ImageTooLargeError = exports.InvalidImageError = exports.AppError = void 0;
-class AppError extends Error {
+export class AppError extends Error {
     statusCode;
     isOperational;
     /**
@@ -18,23 +15,19 @@ class AppError extends Error {
         Error.captureStackTrace(this, this.constructor);
     }
 }
-exports.AppError = AppError;
-class InvalidImageError extends AppError {
+export class InvalidImageError extends AppError {
     constructor(message = "Formato de imagen inválido o archivo corrupto") {
         super(message, 422);
     }
 }
-exports.InvalidImageError = InvalidImageError;
-class ImageTooLargeError extends AppError {
+export class ImageTooLargeError extends AppError {
     constructor(message = "La imagen supera el tamaño máximo permitido") {
         super(message, 413);
     }
 }
-exports.ImageTooLargeError = ImageTooLargeError;
-class IdentificationFailedError extends AppError {
+export class IdentificationFailedError extends AppError {
     constructor(message = "El modelo no pudo identificar la especie") {
         super(message, 422);
     }
 }
-exports.IdentificationFailedError = IdentificationFailedError;
 //# sourceMappingURL=AppError.js.map

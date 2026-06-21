@@ -1,22 +1,16 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.buscarStreamsYouTube = buscarStreamsYouTube;
-const googleapis_1 = require("googleapis");
-const node_cache_1 = __importDefault(require("node-cache"));
-const config_1 = require("../infrastructure/config");
-const AppError_1 = require("../infrastructure/AppError");
+import { google } from 'googleapis';
+import NodeCache from 'node-cache';
+import { env } from '../infrastructure/config.js';
+import { AppError } from '../infrastructure/AppError.js';
 // Caché global: máximo 100 elementos, 20 minutos de TTL (1200 segundos)
-const streamsCache = new node_cache_1.default({ stdTTL: 1200, maxKeys: 100 });
+const streamsCache = new NodeCache({ stdTTL: 1200, maxKeys: 100 });
 /**
  * Busca videos en vivo en YouTube basados en filtros.
  * Implementa un TTL Cache estricto para proteger cuotas de API.
  */
-async function buscarStreamsYouTube(animal, region) {
-    if (!config_1.env.YOUTUBE_API_KEY) {
-        throw new AppError_1.AppError("La API Key de YouTube no está configurada en el servidor.", 500);
+export async function buscarStreamsYouTube(animal, region) {
+    if (!env.YOUTUBE_API_KEY) {
+        throw new AppError("La API Key de YouTube no está configurada en el servidor.", 500);
     }
     // Construir el query
     const queryParts = ["wildlife live cam"];
@@ -33,9 +27,9 @@ async function buscarStreamsYouTube(animal, region) {
     }
     console.log(`Consultando YouTube API para: '${query}'`);
     try {
-        const youtube = googleapis_1.google.youtube({
+        const youtube = google.youtube({
             version: 'v3',
-            auth: config_1.env.YOUTUBE_API_KEY
+            auth: env.YOUTUBE_API_KEY
         });
         const response = await youtube.search.list({
             part: ['snippet'],
@@ -56,7 +50,7 @@ async function buscarStreamsYouTube(animal, region) {
     }
     catch (error) {
         console.error(`Error de YouTube API:`, error?.response?.data || error.message);
-        throw new AppError_1.AppError("Ocurrió un error al consultar las transmisiones en vivo.", 502);
+        throw new AppError("Ocurrió un error al consultar las transmisiones en vivo.", 502);
     }
 }
 //# sourceMappingURL=wildlife.service.js.map

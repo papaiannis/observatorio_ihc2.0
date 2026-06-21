@@ -1,4 +1,4 @@
-import { IResultadoIdentificacion } from '../models/ObservationRepository';
+import { IResultadoIdentificacion } from '../models/ObservationRepository.js';
 /**
  * Orquesta el flujo completo de identificación visual:
  * 1. Llama a Hugging Face para clasificación (principal).

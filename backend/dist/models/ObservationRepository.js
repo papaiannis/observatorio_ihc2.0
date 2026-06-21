@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.commentRepository = exports.likeRepository = exports.sightingRepository = exports.CommentRepository = exports.LikeRepository = exports.SightingRepository = void 0;
-const supabase_js_1 = require("@supabase/supabase-js");
-const config_1 = require("../infrastructure/config");
-const AppError_1 = require("../infrastructure/AppError");
+import { createClient } from '@supabase/supabase-js';
+import { env } from '../infrastructure/config.js';
+import { AppError } from '../infrastructure/AppError.js';
 // ============================================================
 // Repositorio principal: Avistamientos
 // ============================================================
@@ -15,11 +12,11 @@ const AppError_1 = require("../infrastructure/AppError");
  * - Cálculos espaciales delegados a PostGIS vía RPC (ST_DWithin).
  * - Imágenes/audios siempre como URLs de Storage, nunca como BLOB.
  */
-class SightingRepository {
+export class SightingRepository {
     supabase = null;
     constructor() {
-        if (config_1.env.SUPABASE_URL && config_1.env.SUPABASE_KEY) {
-            this.supabase = (0, supabase_js_1.createClient)(config_1.env.SUPABASE_URL, config_1.env.SUPABASE_KEY);
+        if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+            this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
         }
         else {
             console.warn('[SightingRepository] Credenciales de Supabase no configuradas. Usando modo mock.');
@@ -32,7 +29,7 @@ class SightingRepository {
      */
     async updateSightingWithAIResult(sightingId, result) {
         if (!this.supabase) {
-            throw new AppError_1.AppError('Supabase no configurado en entorno remoto.', 500);
+            throw new AppError('Supabase no configurado en entorno remoto.', 500);
         }
         const { data, error } = await this.supabase
             .from('sightings')
@@ -50,7 +47,7 @@ class SightingRepository {
             .select()
             .single();
         if (error) {
-            throw new AppError_1.AppError(`Error al actualizar avistamiento con IA: ${error.message}`, 500);
+            throw new AppError(`Error al actualizar avistamiento con IA: ${error.message}`, 500);
         }
         return data;
     }
@@ -67,7 +64,7 @@ class SightingRepository {
             radius_meters: radiusMeters,
         });
         if (error) {
-            throw new AppError_1.AppError(`Error en PostGIS ST_DWithin (RPC): ${error.message}`, 500);
+            throw new AppError(`Error en PostGIS ST_DWithin (RPC): ${error.message}`, 500);
         }
         return (data ?? []);
     }
@@ -77,7 +74,7 @@ class SightingRepository {
      */
     async validateSighting(sightingId, validatedSpeciesId, newStatus) {
         if (!this.supabase) {
-            throw new AppError_1.AppError('Supabase no configurado. No se puede validar.', 500);
+            throw new AppError('Supabase no configurado. No se puede validar.', 500);
         }
         const { data, error } = await this.supabase
             .from('sightings')
@@ -90,15 +87,14 @@ class SightingRepository {
             .select()
             .single();
         if (error) {
-            throw new AppError_1.AppError(`Error al validar avistamiento: ${error.message}`, 500);
+            throw new AppError(`Error al validar avistamiento: ${error.message}`, 500);
         }
         return data;
     }
     _mockSighting() {
-        throw new AppError_1.AppError('Modo mock deshabilitado para actualizaciones.', 500);
+        throw new AppError('Modo mock deshabilitado para actualizaciones.', 500);
     }
 }
-exports.SightingRepository = SightingRepository;
 // ============================================================
 // Repositorio: Likes
 // ============================================================
@@ -107,11 +103,11 @@ exports.SightingRepository = SightingRepository;
  * Usa PRIMARY KEY compuesta (user_id, sighting_id) para garantizar
  * que cada usuario solo tenga un like por avistamiento.
  */
-class LikeRepository {
+export class LikeRepository {
     supabase = null;
     constructor() {
-        if (config_1.env.SUPABASE_URL && config_1.env.SUPABASE_KEY) {
-            this.supabase = (0, supabase_js_1.createClient)(config_1.env.SUPABASE_URL, config_1.env.SUPABASE_KEY);
+        if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+            this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
         }
     }
     /** Agrega un like. Si ya existe, Supabase retorna error de PK duplicada (ignorado). */
@@ -122,7 +118,7 @@ class LikeRepository {
             .from('likes')
             .upsert({ user_id: userId, sighting_id: sightingId }, { onConflict: 'user_id,sighting_id' });
         if (error) {
-            throw new AppError_1.AppError(`Error al agregar like: ${error.message}`, 500);
+            throw new AppError(`Error al agregar like: ${error.message}`, 500);
         }
     }
     /** Elimina un like de un usuario para un avistamiento específico. */
@@ -135,7 +131,7 @@ class LikeRepository {
             .eq('user_id', userId)
             .eq('sighting_id', sightingId);
         if (error) {
-            throw new AppError_1.AppError(`Error al eliminar like: ${error.message}`, 500);
+            throw new AppError(`Error al eliminar like: ${error.message}`, 500);
         }
     }
     /** Retorna la cantidad de likes de un avistamiento. */
@@ -147,29 +143,28 @@ class LikeRepository {
             .select('*', { count: 'exact', head: true })
             .eq('sighting_id', sightingId);
         if (error) {
-            throw new AppError_1.AppError(`Error al contar likes: ${error.message}`, 500);
+            throw new AppError(`Error al contar likes: ${error.message}`, 500);
         }
         return count ?? 0;
     }
 }
-exports.LikeRepository = LikeRepository;
 // ============================================================
 // Repositorio: Comentarios
 // ============================================================
 /**
  * Repositorio para la tabla `comments`.
  */
-class CommentRepository {
+export class CommentRepository {
     supabase = null;
     constructor() {
-        if (config_1.env.SUPABASE_URL && config_1.env.SUPABASE_KEY) {
-            this.supabase = (0, supabase_js_1.createClient)(config_1.env.SUPABASE_URL, config_1.env.SUPABASE_KEY);
+        if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+            this.supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
         }
     }
     /** Inserta un nuevo comentario en un avistamiento. */
     async addComment(userId, sightingId, content) {
         if (!this.supabase) {
-            throw new AppError_1.AppError('Supabase no configurado.', 500);
+            throw new AppError('Supabase no configurado.', 500);
         }
         const { data, error } = await this.supabase
             .from('comments')
@@ -177,7 +172,7 @@ class CommentRepository {
             .select()
             .single();
         if (error) {
-            throw new AppError_1.AppError(`Error al agregar comentario: ${error.message}`, 500);
+            throw new AppError(`Error al agregar comentario: ${error.message}`, 500);
         }
         return data;
     }
@@ -194,7 +189,7 @@ class CommentRepository {
             .eq('sighting_id', sightingId)
             .order('created_at', { ascending: true });
         if (error) {
-            throw new AppError_1.AppError(`Error al obtener comentarios: ${error.message}`, 500);
+            throw new AppError(`Error al obtener comentarios: ${error.message}`, 500);
         }
         return (data ?? []);
     }
@@ -207,15 +202,14 @@ class CommentRepository {
             .delete()
             .eq('id', commentId);
         if (error) {
-            throw new AppError_1.AppError(`Error al eliminar comentario: ${error.message}`, 500);
+            throw new AppError(`Error al eliminar comentario: ${error.message}`, 500);
         }
     }
 }
-exports.CommentRepository = CommentRepository;
 // ============================================================
 // Singletons reutilizables en toda la app
 // ============================================================
-exports.sightingRepository = new SightingRepository();
-exports.likeRepository = new LikeRepository();
-exports.commentRepository = new CommentRepository();
+export const sightingRepository = new SightingRepository();
+export const likeRepository = new LikeRepository();
+export const commentRepository = new CommentRepository();
 //# sourceMappingURL=ObservationRepository.js.map

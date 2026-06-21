@@ -1,11 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleLogin = handleLogin;
-const supabase_js_1 = require("@supabase/supabase-js");
-const config_1 = require("../infrastructure/config");
+import { createClient } from '@supabase/supabase-js';
+import { env } from '../infrastructure/config.js';
 // Inicialización limpia con la clave ANON (suficiente para autenticar usuarios)
-const supabase = (0, supabase_js_1.createClient)(config_1.env.SUPABASE_URL, config_1.env.SUPABASE_KEY);
-async function handleLogin(req, res, next) {
+const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
+export async function handleLogin(req, res, next) {
     try {
         const { email, password } = req.body;
         // Validación básica de presencia
