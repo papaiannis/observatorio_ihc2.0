@@ -4,6 +4,7 @@ declare global {
       user?: {
         id: string;
         email?: string | undefined;
+        token?: string;  // JWT de acceso del usuario para operaciones RLS en Supabase
       };
     }
   }

@@ -19,8 +19,8 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       throw new AppError('Token inválido o expirado.', 401);
     }
 
-    // Inyectamos el usuario en la request para su uso posterior
-    req.user = { id: user.id, email: user.email };
+    // Inyectamos el usuario y su token en la request para uso posterior
+    req.user = { id: user.id, email: user.email, token };
     
     next();
   } catch (error) {

@@ -21,6 +21,13 @@ export const createContribution = async (req: Request, res: Response, next: Next
       throw new AppError('No autorizado', 401);
     }
 
+    // El token es necesario para que el servicio pueda crear un cliente Supabase
+    // autenticado con el contexto RLS del usuario (auth.uid() = user_id)
+    const userToken = user.token;
+    if (!userToken) {
+      throw new AppError('Token de autenticación no disponible', 401);
+    }
+
     const file = req.file;
     if (!file) {
       throw new AppError('La foto es requerida', 400);
@@ -32,8 +39,8 @@ export const createContribution = async (req: Request, res: Response, next: Next
       throw new AppError(`Datos inválidos: ${parseResult.error.message}`, 400);
     }
 
-    // Llamar al servicio
-    const result = await ContributionService.createContribution(user, parseResult.data, file);
+    // Llamar al servicio con el token del usuario para contexto RLS
+    const result = await ContributionService.createContribution(user, userToken, parseResult.data, file);
     
     res.status(201).json(result);
   } catch (error) {
