@@ -20,7 +20,12 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     }
 
     // Inyectamos el usuario y su token en la request para uso posterior
-    req.user = { id: user.id, email: user.email, token };
+    // Con exactOptionalPropertyTypes=true, solo asignamos propiedades con valor definido
+    req.user = {
+      id: user.id,
+      ...(user.email !== undefined && { email: user.email }),
+      token,
+    };
     
     next();
   } catch (error) {
