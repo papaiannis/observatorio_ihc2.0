@@ -48,7 +48,7 @@ export class ContributionService {
     const fileExt = file.originalname.split('.').pop() || 'jpg';
     const filePath = `contributions/${user.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     
-    const { error: uploadErr } = await supabase.storage
+    const { error: uploadErr } = await authClient.storage
       .from('observaciones-media')
       .upload(filePath, file.buffer, { contentType: file.mimetype });
 
@@ -56,7 +56,7 @@ export class ContributionService {
       throw new AppError(`Error al subir imagen: ${uploadErr.message}`, 500);
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = authClient.storage
       .from('observaciones-media')
       .getPublicUrl(filePath);
       

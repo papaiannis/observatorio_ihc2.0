@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -44,7 +44,9 @@ async function runTests() {
   console.log(`\n=== 2. Test GET /api/investigations/active ===`);
   let investigationId = null;
   try {
-    const response = await fetch(`${API_URL}/investigations/active`, {
+    const fetchUrl = `${API_URL}/investigations/active`;
+    console.log(`📡 Conectando a: ${fetchUrl}`);
+    const response = await fetch(fetchUrl, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
