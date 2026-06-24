@@ -24,7 +24,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     req.user = {
       id: user.id,
       ...(user.email !== undefined && { email: user.email }),
-      token,
+      ...(token !== undefined && { token }),
     };
     
     next();
