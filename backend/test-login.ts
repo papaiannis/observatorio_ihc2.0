@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import dns from 'dns';
+
+// Fuerza IPv4 primero para evitar timeouts
+dns.setDefaultResultOrder('ipv4first');
+
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;

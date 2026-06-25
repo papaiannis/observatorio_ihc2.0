@@ -2,6 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
+
+// Fuerza IPv4 primero para evitar problemas de timeout en 'fetch' de Node.js (Undici) en Windows
+dns.setDefaultResultOrder('ipv4first');
 
 dotenv.config({ override: true });
 
