@@ -26,5 +26,5 @@ app.use((err, req, res, next) => {
         detail: "Error interno del servidor"
     });
 });
-export default app;
+export { app };
 //# sourceMappingURL=app.js.map

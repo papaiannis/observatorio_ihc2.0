@@ -1,17 +1,26 @@
 import exifr from 'exifr';
-import { supabase } from '../infrastructure/supabase.js';
+import { createAuthenticatedClient } from '../infrastructure/supabase.js';
 import { AppError } from '../infrastructure/AppError.js';
 import { env } from '../infrastructure/config.js';
 export class ContributionService {
-    static async createContribution(user, data, file) {
+    /**
+     * Crea una contribución para una investigación activa.
+     * @param user - Usuario autenticado (id, email)
+     * @param userToken - JWT del usuario para autenticar operaciones RLS en Supabase
+     * @param data - Datos del formulario de la contribución
+     * @param file - Archivo de imagen subido
+     */
+    static async createContribution(user, userToken, data, file) {
+        // Cliente autenticado con el token del usuario para respetar las políticas RLS
+        const authClient = createAuthenticatedClient(userToken);
         const { investigation_id, preliminary_species, survey_answers, observed_at, latitude, longitude, gps_accuracy } = data;
         // 1. Validar tamaño (ej: máximo 5MB o el del env)
         const MAX_SIZE = env.MAX_IMAGE_SIZE_BYTES || 10485760; // 10MB default
         if (file.size > MAX_SIZE) {
             throw new AppError(`Foto demasiado grande (máx ${MAX_SIZE / 1024 / 1024}MB)`, 400);
         }
-        // 2. Verificar que la investigación existe y está activa
-        const { data: inv, error: invErr } = await supabase
+        // 2. Verificar que la investigación existe y está activa (usando authClient para contexto RLS)
+        const { data: inv, error: invErr } = await authClient
             .from('investigations')
             .select('id, status')
             .eq('id', investigation_id)
@@ -23,14 +32,14 @@ export class ContributionService {
         // 3. Subir foto a Storage
         const fileExt = file.originalname.split('.').pop() || 'jpg';
         const filePath = `contributions/${user.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { error: uploadErr } = await supabase.storage
-            .from('contributions')
+        const { error: uploadErr } = await authClient.storage
+            .from('observaciones-media')
             .upload(filePath, file.buffer, { contentType: file.mimetype });
         if (uploadErr) {
             throw new AppError(`Error al subir imagen: ${uploadErr.message}`, 500);
         }
-        const { data: publicUrlData } = supabase.storage
-            .from('contributions')
+        const { data: publicUrlData } = authClient.storage
+            .from('observaciones-media')
             .getPublicUrl(filePath);
         const publicURL = publicUrlData.publicUrl;
         // 4. Extraer EXIF
@@ -81,7 +90,7 @@ export class ContributionService {
             metadata_edited: edited,
             contribution_status: 'pending',
         };
-        const { data: inserted, error: insertErr } = await supabase
+        const { data: inserted, error: insertErr } = await authClient
             .from('investigation_contributions')
             .insert(contribution)
             .select('id')
@@ -90,14 +99,14 @@ export class ContributionService {
             throw new AppError(`Error al guardar contribución: ${insertErr.message}`, 500);
         }
         // 6. Suscribir al usuario a la investigación si no lo está
-        const { data: sub } = await supabase
+        const { data: sub } = await authClient
             .from('investigation_subscriptions')
             .select('investigation_id')
             .eq('investigation_id', investigation_id)
             .eq('user_id', user.id)
             .maybeSingle();
         if (!sub) {
-            await supabase
+            await authClient
                 .from('investigation_subscriptions')
                 .insert({
                 investigation_id,

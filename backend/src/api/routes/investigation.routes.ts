@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import { getActiveInvestigations, getInvestigationById } from '../../controllers/investigation.controller.js';
+import { subscribe, unsubscribe, mySubscriptions } from '../../controllers/subscription.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Rutas públicas o protegidas (usaremos protegidas por ahora ya que en general la app requiere auth)
-// o podríamos dejar getActiveInvestigations público, pero asumamos protegido como indica la regla "Usuarios autenticados"
+// Suscripciones — my-subscriptions ANTES de /:id para evitar captura del parámetro
+router.get('/my-subscriptions', authMiddleware, mySubscriptions);
+
+// Investigaciones base
 router.get('/active', authMiddleware, getActiveInvestigations);
 router.get('/:id', authMiddleware, getInvestigationById);
+
+// Suscribirse / desuscribirse a una investigación específica
+router.post('/:id/subscribe', authMiddleware, subscribe);
+router.delete('/:id/subscribe', authMiddleware, unsubscribe);
 
 export default router;

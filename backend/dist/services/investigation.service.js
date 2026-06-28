@@ -6,7 +6,8 @@ export class InvestigationService {
      * Filtra por status = 'active' y end_date >= hoy.
      */
     static async getActiveInvestigations() {
-        const today = new Date().toISOString();
+        // end_date es tipo DATE en PostgreSQL, se compara solo con la parte de fecha (YYYY-MM-DD)
+        const today = new Date().toISOString().split('T')[0];
         const { data, error } = await supabase
             .from('investigations')
             .select('id, title, description, start_date, end_date, survey_questions')
