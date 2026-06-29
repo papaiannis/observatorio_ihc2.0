@@ -1,0 +1,339 @@
+# Documentación de la API - Observatorio IHC 2.0
+
+Esta documentación detalla los endpoints disponibles en el backend (`/src/api/routes`) para que el frontend pueda consumirlos correctamente.
+
+> [!NOTE]
+> **Base URL:** `/api/v1`
+> **Manejo de Errores:** Todos los errores controlados (400, 401, 403, 404, 422, etc.) devuelven un JSON estructurado así:
+> `{ "detail": "Mensaje de error para el usuario o desarrollador" }`
+
+---
+
+## 1. Autenticación (Auth)
+
+> [!IMPORTANT]
+> A excepción de los endpoints marcados como **públicos**, todos los demás requieren incluir el token JWT en las cabeceras de la petición.
+> `Authorization: Bearer <TU_TOKEN_AQUI>`
+
+### Iniciar Sesión
+- **Ruta:** `POST /auth/login`
+- **Autenticación:** No requerida
+- **Descripción:** Autentica a un usuario usando correo y contraseña.
+
+**Body de la petición:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR...",
+  "user": {
+    "id": "uuid-del-usuario",
+    "email": "user@example.com"
+  }
+}
+```
+
+---
+
+## 2. Identificación de Especies (IA)
+
+### Iniciar Identificación
+- **Ruta:** `POST /identificacion/identificar`
+- **Autenticación:** Requerida
+- **Descripción:** Inicia el procesamiento de IA de un avistamiento a partir de su ID y foto.
+
+**Body de la petición:**
+```json
+{
+  "sighting_id": "uuid-del-avistamiento",
+  "photo_url": "https://url.a.la.imagen/subida/por/el/cliente.jpg"
+}
+```
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "sighting_id": "uuid-del-avistamiento",
+  "especie_principal": {
+    "etiqueta": "Nombre Científico o Común",
+    "confianza": 0.95
+  },
+  "alternativas": [
+    { "etiqueta": "Otra Especie", "confianza": 0.04 }
+  ],
+  "requiere_revision_humana": false,
+  "modelo_usado": "hf-modelo-usado",
+  "gemma_respuesta": "Explicación detallada provista por el LLM."
+}
+```
+
+---
+
+## 3. Investigaciones (Investigations)
+
+### Obtener Investigaciones Activas
+- **Ruta:** `GET /investigations/active`
+- **Autenticación:** Requerida
+- **Descripción:** Lista todas las investigaciones que están actualmente activas.
+- **Respuesta (200 OK):** `[ { ...datos_investigacion }, ... ]`
+
+### Obtener Detalles de Investigación
+- **Ruta:** `GET /investigations/:id`
+- **Autenticación:** Requerida
+- **Descripción:** Obtiene los detalles completos de una investigación por su UUID.
+- **Respuesta (200 OK):** `{ ...datos_investigacion }`
+
+### Mis Suscripciones
+- **Ruta:** `GET /investigations/my-subscriptions`
+- **Autenticación:** Requerida
+- **Descripción:** Lista las investigaciones a las que el usuario actual está suscrito.
+
+**Respuesta (200 OK):**
+```json
+{
+  "count": 2,
+  "subscriptions": [
+    { /* datos_suscripcion */ }
+  ]
+}
+```
+
+### Suscribirse a Investigación
+- **Ruta:** `POST /investigations/:id/subscribe`
+- **Autenticación:** Requerida
+- **Descripción:** Inscribe al usuario en la investigación dada.
+- **Respuesta (201 Created):** Objeto con la información de la suscripción.
+
+### Cancelar Suscripción
+- **Ruta:** `DELETE /investigations/:id/subscribe`
+- **Autenticación:** Requerida
+- **Descripción:** Cancela la suscripción del usuario en la investigación.
+- **Respuesta (200 OK):** Objeto con el resultado de la operación.
+
+---
+
+## 4. Contribuciones (Contributions)
+
+### Crear Contribución
+- **Ruta:** `POST /contributions/`
+- **Autenticación:** Requerida
+- **Content-Type:** `multipart/form-data`
+- **Descripción:** Registra un nuevo avistamiento.
+
+**Form Data Fields:**
+- `photo`: (Archivo Binario, requerido)
+- `investigation_id`: string (UUID, requerido)
+- `preliminary_species`: string (opcional)
+- `survey_answers`: string (JSON stringificado, opcional)
+- `observed_at`: string (fecha ISO con timezone, opcional)
+- `latitude`: number (-90 a 90, opcional)
+- `longitude`: number (-180 a 180, opcional)
+- `gps_accuracy`: number (positivo, opcional)
+
+**Respuesta (201 Created):** `{ "message": "...", "contribution": { ... } }`
+
+### Obtener Pendientes
+- **Ruta:** `GET /contributions/pending`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Descripción:** Lista las contribuciones pendientes de validación por los especialistas (ordenadas por antigüedad).
+
+**Respuesta (200 OK):**
+```json
+{
+  "count": 10,
+  "contributions": [ { ... } ]
+}
+```
+
+### Validar Contribución
+- **Ruta:** `PATCH /contributions/:id/validate`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Descripción:** Asigna una especie confirmada y califica la contribución.
+
+**Body de la petición:**
+```json
+{
+  "validated_species_id": "uuid-especie",
+  "expert_comment": "Comentario del especialista (max 1000 chars)",
+  "expert_rating": 5
+}
+```
+*`expert_comment` y `expert_rating` (1-5) son opcionales.*
+
+**Respuesta (200 OK):** `{ "message": "...", "contribution": { ... } }`
+
+### Apelar Contribución (Poner en revisión)
+- **Ruta:** `PATCH /contributions/:id/appeal`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Descripción:** Marca la contribución como "En revisión" para debatir.
+
+**Body de la petición:**
+```json
+{
+  "notes": "Motivo de la revisión (max 500 chars, opcional)"
+}
+```
+
+**Respuesta (200 OK):** `{ "message": "...", "contribution": { ... } }`
+
+---
+
+## 5. Especies (Species)
+
+### Buscar Especies
+- **Ruta:** `GET /species/search?q=<termino>`
+- **Autenticación:** Requerida (Especialistas)
+- **Descripción:** Busca especies en el catálogo por nombre común o científico.
+- **Parámetros Query:** `q` (string, requerido)
+
+**Respuesta (200 OK):**
+```json
+{
+  "count": 3,
+  "species": [ { ... } ]
+}
+```
+
+---
+
+## 6. Feed (Visualización de datos)
+
+> [!TIP]
+> Los endpoints del Feed soportan **Autenticación Opcional**.
+> - Si se envía el token válido: Se devolverán coordenadas exactas (lat/lng).
+> - Si NO se envía o es un usuario invitado: Las coordenadas vendrán como nulas u ofuscadas para proteger la privacidad.
+
+### Feed Comunitario
+- **Ruta:** `GET /feed`
+- **Descripción:** Muestra la lista completa de avistamientos recientes de la comunidad.
+
+**Respuesta (200 OK):**
+```json
+{
+  "authenticated": true,
+  "coordinates_visible": true,
+  "count": 25,
+  "feed": [ { ... } ]
+}
+```
+
+### Observatorio Científico
+- **Ruta:** `GET /feed/observatory`
+- **Descripción:** Muestra **únicamente** las contribuciones que ya han sido validadas por un experto (ideal para el mapa).
+
+**Respuesta (200 OK):**
+```json
+{
+  "authenticated": true,
+  "coordinates_visible": true,
+  "count": 12,
+  "observatory": [ { ... } ]
+}
+```
+
+---
+
+## 7. Interacciones Sociales
+
+### Comentarios
+
+#### Crear Comentario
+- **Ruta:** `POST /comments`
+- **Autenticación:** Requerida
+- **Body:** `{ "sighting_id": "uuid", "content": "texto del comentario" }`
+- **Respuesta (201 Created):** Devuelve el objeto del comentario insertado.
+
+#### Listar Comentarios
+- **Ruta:** `GET /comments?sighting_id=<uuid>`
+- **Autenticación:** Pública (No requerida)
+- **Respuesta (200 OK):**
+```json
+{
+  "count": 5,
+  "comments": [ { ... } ]
+}
+```
+
+#### Eliminar Comentario
+- **Ruta:** `DELETE /comments/:id`
+- **Autenticación:** Requerida (Solo el autor)
+- **Respuesta:** `204 No Content` (Sin body)
+
+### Likes
+
+#### Alternar Like (Dar/Quitar)
+- **Ruta:** `POST /likes/toggle`
+- **Autenticación:** Requerida
+- **Body:** `{ "sighting_id": "uuid" }`
+- **Respuesta (200 OK):** `{ "action": "liked" }` o `{ "action": "unliked" }`
+
+#### Contar Likes de un Avistamiento
+- **Ruta:** `GET /likes/count?sighting_id=<uuid>`
+- **Autenticación:** Pública (No requerida)
+- **Respuesta (200 OK):** `{ "sighting_id": "uuid", "count": 15 }`
+
+---
+
+## 8. Notificaciones (Notifications)
+
+### Listar Mis Notificaciones
+- **Ruta:** `GET /notifications`
+- **Autenticación:** Requerida
+- **Descripción:** Obtiene las últimas 50 notificaciones del usuario.
+
+**Respuesta (200 OK):**
+```json
+{
+  "unread_count": 2,
+  "total": 15,
+  "notifications": [ { ... } ]
+}
+```
+
+### Marcar Notificación como Leída
+- **Ruta:** `PATCH /notifications/:id/read`
+- **Autenticación:** Requerida
+- **Respuesta (200 OK):** `{ "message": "...", "notification": { ... } }`
+
+---
+
+## 9. Perfiles de Usuario (Profiles)
+
+### Editar Mi Perfil
+- **Ruta:** `PATCH /profiles/me`
+- **Autenticación:** Requerida
+- **Descripción:** Permite cambiar el avatar o las preferencias (JSON).
+
+**Body de la petición:**
+```json
+{
+  "avatar_url": "https://...",
+  "preferencias": { "theme": "dark" }
+}
+```
+*(Ambos campos son opcionales)*
+
+**Respuesta (200 OK):** Devuelve el perfil actualizado.
+
+### Obtener Perfil Público
+- **Ruta:** `GET /profiles/:username`
+- **Autenticación:** Pública (No requerida)
+- **Descripción:** Obtiene los datos públicos de un usuario.
+- **Respuesta (200 OK):** `{ ...datos_publicos_perfil... }`
+
+---
+
+## 10. Exportación de Datos
+
+### Exportar CSV (Darwin Core)
+- **Ruta:** `GET /export/csv?investigation_id=<uuid>`
+- **Autenticación:** Requerida (Especialistas / Administradores)
+- **Parámetros Query:** `investigation_id` (opcional). Si no se envía, exporta de toda la base de datos validada.
+- **Respuesta:** Devuelve un archivo `.csv` descargable estructurado según el estándar Darwin Core. (Content-Type: `text/csv`)
