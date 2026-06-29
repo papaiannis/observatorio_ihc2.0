@@ -4,11 +4,19 @@ services:
     env: node
     rootDir: backend
     region: ohio
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: HF_MODEL_ID
+        value: microsoft/resnet-50
+      - key: CONFIDENCE_THRESHOLD
+        value: "0.50"
+      - key: MAX_ALTERNATIVES
+        value: "3"
+      - key: MAX_IMAGE_SIZE_BYTES
+        value: "10485760"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
