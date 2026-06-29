@@ -50,7 +50,7 @@ export const markNotificationReadController = async (
 
     const { id } = req.params;
 
-    const updated = await markNotificationRead(id, user.token);
+    const updated = await markNotificationRead(id as string, user.token);
 
     res.json({ message: 'Notificación marcada como leída.', notification: updated });
   } catch (error) {

@@ -8,7 +8,7 @@ import * as subscriptionService from '../services/subscription.service.js';
 export const subscribe = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const result = await subscriptionService.subscribe(id, req.user!.id, req.user!.token!);
+    const result = await subscriptionService.subscribe(id as string, req.user!.id, req.user!.token!);
     res.status(201).json(result);
   } catch (error) {
     next(error);
@@ -22,7 +22,7 @@ export const subscribe = async (req: Request, res: Response, next: NextFunction)
 export const unsubscribe = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const result = await subscriptionService.unsubscribe(id, req.user!.id, req.user!.token!);
+    const result = await subscriptionService.unsubscribe(id as string, req.user!.id, req.user!.token!);
     res.json(result);
   } catch (error) {
     next(error);

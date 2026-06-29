@@ -68,7 +68,7 @@ export const getPendingContributions = async (req, res, next) => {
         created_at,
         investigation_id,
         user_id,
-        profiles!inner(username)
+        profiles!investigation_contributions_user_id_fkey!inner(username)
       `)
             .eq('contribution_status', 'pending')
             .order('created_at', { ascending: true }); // Más antiguo primero (criterio científico)
@@ -124,7 +124,7 @@ export const validateContribution = async (req, res, next) => {
         })
             .eq('id', id)
             .select('id, user_id, contribution_status')
-            .single();
+            .maybeSingle();
         if (error)
             throw new AppError(error.message, 500);
         if (!data)
@@ -167,7 +167,7 @@ export const appealContribution = async (req, res, next) => {
         })
             .eq('id', id)
             .select('id, contribution_status')
-            .single();
+            .maybeSingle();
         if (error)
             throw new AppError(error.message, 500);
         if (!data)

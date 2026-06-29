@@ -337,3 +337,192 @@ Esta documentación detalla los endpoints disponibles en el backend (`/src/api/r
 - **Autenticación:** Requerida (Especialistas / Administradores)
 - **Parámetros Query:** `investigation_id` (opcional). Si no se envía, exporta de toda la base de datos validada.
 - **Respuesta:** Devuelve un archivo `.csv` descargable estructurado según el estándar Darwin Core. (Content-Type: `text/csv`)
+
+---
+
+## 11. Gestión de Investigaciones (Solo Especialistas)
+
+Estos endpoints permiten a los especialistas crear, actualizar y administrar sus propias investigaciones científicas. Todas las rutas requieren autenticación y rol Especialista.
+
+### 11.1 Crear una nueva investigación
+- **Endpoint:** `POST /investigations`
+- **Autenticación:** Requerida (rol: Especialista)
+- **Descripción:** Crea una nueva investigación. El usuario autenticado queda como `created_by`.
+
+**Cuerpo de la petición (JSON):**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `title` | string | Sí | Título de la investigación (máx 255 caracteres) |
+| `description` | string | Sí | Descripción detallada |
+| `start_date` | string (ISO 8601) | Sí | Fecha de inicio (YYYY-MM-DD) |
+| `end_date` | string (ISO 8601) | Sí | Fecha de finalización |
+| `area_geom` | string (WKT) | No | Polígono o punto que delimita el área de estudio. DEBE enviarse en formato WKT (Well-Known Text) con su SRID, ej: `SRID=4326;POLYGON(...)` debido a restricciones de PostGIS. |
+| `methods` | string | No | Metodología empleada (texto libre) |
+| `tools_url` | string | No | URL con herramientas o recursos adicionales |
+| `survey_questions` | array de objetos | No | Lista de preguntas para el formulario de campo. Cada objeto debe tener al menos `label` (string) y `type` (string: 'text', 'number', 'boolean', 'select', etc.). Ejemplo: `[{"label": "¿Vio huellas?", "type": "boolean"}]` |
+| `status` | string | No | Estado inicial. Por defecto 'active'. Puede ser 'active', 'inactive', 'archived'. |
+
+**Ejemplo de petición:**
+
+```json
+{
+  "title": "Estudio de jaguares en el Parque Nacional Canaima",
+  "description": "Monitoreo de la población de jaguares usando cámaras trampa.",
+  "start_date": "2026-07-01",
+  "end_date": "2026-12-31",
+  "area_geom": "SRID=4326;POLYGON((-62.5 5.8, -62.0 5.8, -62.0 6.2, -62.5 6.2, -62.5 5.8))",
+  "methods": "Cámaras trampa instaladas cada 2 km.",
+  "tools_url": "https://ejemplo.com/herramientas",
+  "survey_questions": [
+    { "label": "¿Se observó el jaguar directamente?", "type": "boolean" },
+    { "label": "Número de individuos en la toma", "type": "number" }
+  ],
+  "status": "active"
+}
+```
+
+**Respuesta Exitosa (201 Created):**
+
+```json
+{
+  "id": "uuid-de-la-investigacion",
+  "title": "Estudio de jaguares en el Parque Nacional Canaima",
+  "description": "Monitoreo de la población de jaguares usando cámaras trampa.",
+  "start_date": "2026-07-01",
+  "end_date": "2026-12-31",
+  "area_geom": "SRID=4326;POLYGON((-62.5 5.8, -62.0 5.8, -62.0 6.2, -62.5 6.2, -62.5 5.8))",
+  "methods": "Cámaras trampa instaladas cada 2 km.",
+  "tools_url": "https://ejemplo.com/herramientas",
+  "survey_questions": [ ... ],
+  "status": "active",
+  "created_by": "uuid-del-usuario",
+  "created_at": "2026-06-29T10:00:00Z",
+  "updated_at": "2026-06-29T10:00:00Z"
+}
+```
+
+**Errores comunes:**
+- `400` – Faltan campos requeridos o formato inválido (fechas, geometría, etc.).
+- `401` – Token inválido o ausente.
+- `403` – El usuario no tiene rol de Especialista.
+
+### 11.2 Listar investigaciones creadas por mí
+- **Endpoint:** `GET /investigations/my`
+- **Autenticación:** Requerida (rol: Especialista)
+- **Descripción:** Retorna todas las investigaciones donde el usuario autenticado es el `created_by`. Ordenadas por fecha de creación descendente.
+
+**Respuesta (200 OK):**
+
+```json
+{
+  "count": 3,
+  "investigations": [
+    {
+      "id": "uuid-1",
+      "title": "Estudio de jaguares en el Parque Nacional Canaima",
+      "description": "...",
+      "start_date": "2026-07-01",
+      "end_date": "2026-12-31",
+      "status": "active",
+      "created_at": "2026-06-29T10:00:00Z"
+    }
+  ]
+}
+```
+
+### 11.3 Obtener detalles de una investigación (ya existe)
+- **Endpoint:** `GET /investigations/:id`
+- **Autenticación:** Requerida (puede ser cualquier usuario autenticado)
+- **Descripción:** Obtiene la información completa de una investigación, incluyendo el área y las preguntas del cuestionario.
+- **Respuesta (200 OK):** Objeto completo de la investigación.
+
+### 11.4 Actualizar una investigación
+- **Endpoint:** `PATCH /investigations/:id`
+- **Autenticación:** Requerida (solo el creador o administrador)
+- **Descripción:** Permite actualizar parcialmente los campos de una investigación. Todos los campos son opcionales en el cuerpo, pero al menos uno debe ser enviado. El campo `id` no se puede modificar.
+- **Campos permitidos:** los mismos que en creación (`title`, `description`, `start_date`, `end_date`, `area_geom`, `methods`, `tools_url`, `survey_questions`, `status`).
+
+**Ejemplo de petición:**
+
+```json
+{
+  "title": "Nuevo título actualizado",
+  "status": "inactive"
+}
+```
+
+**Respuesta Exitosa (200 OK):** Devuelve la investigación actualizada completa.
+
+**Errores comunes:**
+- `400` – Datos inválidos.
+- `401` – No autenticado.
+- `403` – El usuario no es el creador (o no es admin).
+- `404` – Investigación no encontrada.
+
+### 11.5 Eliminar (desactivar) una investigación
+- **Endpoint:** `DELETE /investigations/:id`
+- **Autenticación:** Requerida (solo el creador o administrador)
+- **Descripción:** Cambia el estado de la investigación a 'archived' (o 'inactive') en lugar de eliminar físicamente el registro. Esto preserva el historial y las contribuciones asociadas. Si se prefiere una eliminación lógica, se puede usar el campo `status`.
+
+**Respuesta Exitosa (200 OK):**
+
+```json
+{
+  "message": "Investigación desactivada exitosamente",
+  "investigation_id": "uuid"
+}
+```
+
+**Errores comunes:**
+- `401` – No autenticado.
+- `403` – Sin permisos.
+- `404` – Investigación no encontrada.
+
+---
+
+### 🔒 Seguridad (RLS)
+
+En Supabase, se deben crear políticas para garantizar que:
+- Solo el `created_by` pueda actualizar o eliminar (desactivar) su investigación.
+- Cualquier usuario autenticado pueda leer las investigaciones activas (`GET /investigations/active` y `/investigations/:id`).
+- Solo especialistas puedan crear nuevas investigaciones (rol verificado en la política).
+
+**Ejemplo de políticas SQL:**
+
+```sql
+-- Política para INSERT: solo especialistas
+CREATE POLICY "Especialistas pueden crear investigaciones"
+ON investigations FOR INSERT
+TO authenticated
+WITH CHECK (EXISTS (
+  SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'Especialista'
+));
+
+-- Política para UPDATE/DELETE: solo el creador
+CREATE POLICY "Creador puede actualizar su investigación"
+ON investigations FOR UPDATE
+TO authenticated
+USING (created_by = auth.uid())
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Creador puede eliminar su investigación"
+ON investigations FOR DELETE
+TO authenticated
+USING (created_by = auth.uid());
+
+-- Política para SELECT: público (o autenticado) puede ver todas
+CREATE POLICY "Cualquiera puede ver investigaciones"
+ON investigations FOR SELECT
+TO public
+USING (true);
+```
+
+### 📝 Resumen de nuevos endpoints
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `POST` | `/investigations` | Crear investigación | ✅ (Especialista) |
+| `GET` | `/investigations/my` | Mis investigaciones creadas | ✅ (Especialista) |
+| `PATCH` | `/investigations/:id` | Actualizar investigación | ✅ (Creador) |
+| `DELETE` | `/investigations/:id` | Desactivar investigación | ✅ (Creador) |

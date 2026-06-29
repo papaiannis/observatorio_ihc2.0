@@ -52,7 +52,7 @@ interface DarwinCoreRecord {
 function buildCsv(records: DarwinCoreRecord[]): string {
   if (records.length === 0) return '';
 
-  const headers = Object.keys(records[0]) as (keyof DarwinCoreRecord)[];
+  const headers = Object.keys(records[0] || {}) as (keyof DarwinCoreRecord)[];
   const headerLine = headers.join(',');
 
   const rows = records.map(record => {

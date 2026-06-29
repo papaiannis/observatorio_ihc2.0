@@ -8,7 +8,7 @@ import * as profileService from '../services/profile.service.js';
 export const getProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username } = req.params;
-    const profile = await profileService.getPublicProfile(username);
+    const profile = await profileService.getPublicProfile(username as string);
     res.json(profile);
   } catch (error) {
     next(error);

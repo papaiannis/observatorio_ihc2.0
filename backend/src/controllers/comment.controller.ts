@@ -48,7 +48,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
 export const deleteComment = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    await commentService.deleteComment(id, req.user!.id, req.user!.token!);
+    await commentService.deleteComment(id as string, req.user!.id, req.user!.token!);
     res.status(204).send();
   } catch (error) {
     next(error);
