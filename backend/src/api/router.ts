@@ -10,6 +10,7 @@ import notificationRoutes from './routes/notification.routes.js';
 import commentRoutes from './routes/comment.routes.js';
 import likeRoutes from './routes/like.routes.js';
 import profileRoutes from './routes/profile.routes.js';
+import sightingRoutes from './routes/sighting.routes.js';
 
 const apiRouter = Router();
 
@@ -17,6 +18,7 @@ const apiRouter = Router();
 apiRouter.use('/identificacion', identificacionRoutes);
 apiRouter.use('/investigations', investigationRoutes);
 apiRouter.use('/contributions', contributionRoutes);
+apiRouter.use('/sightings', sightingRoutes);
 apiRouter.use('/', authRoutes);
 
 // Semana 3: Curaduría, Feed, Exportación y Notificaciones

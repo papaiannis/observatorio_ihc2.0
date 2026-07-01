@@ -5,7 +5,8 @@ import {
   createInvestigation,
   getMyInvestigations,
   updateInvestigation,
-  deleteInvestigation
+  deleteInvestigation,
+  getInvestigationContributions
 } from '../../controllers/investigation.controller.js';
 import { subscribe, unsubscribe, mySubscriptions } from '../../controllers/subscription.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
@@ -24,6 +25,7 @@ router.get('/my-subscriptions', authMiddleware, mySubscriptions);
 // Investigaciones base
 router.get('/active', authMiddleware, getActiveInvestigations);
 router.get('/:id', authMiddleware, getInvestigationById);
+router.get('/:id/contributions', authMiddleware, getInvestigationContributions);
 
 // Actualizar y eliminar investigación (PATCH y DELETE /:id)
 router.patch('/:id', authMiddleware, updateInvestigation);

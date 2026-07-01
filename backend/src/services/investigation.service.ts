@@ -140,4 +140,37 @@ export class InvestigationService {
 
     return true;
   }
+
+  /**
+   * Obtiene las contribuciones de una investigación específica
+   */
+  static async getContributionsByInvestigation(investigationId: string, userToken: string, filters?: { status?: string, limit?: number, offset?: number }) {
+    const authClient = createAuthenticatedClient(userToken);
+    let query = authClient
+      .from('investigation_contributions')
+      .select(`
+        *,
+        profiles:user_id(username, avatar_url),
+        species:validated_species_id(scientific_name, common_name)
+      `, { count: 'exact' })
+      .eq('investigation_id', investigationId)
+      .order('created_at', { ascending: false });
+
+    if (filters?.status) {
+      query = query.eq('contribution_status', filters.status);
+    }
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      const limit = filters.limit || 10;
+      query = query.range(filters.offset, filters.offset + limit - 1);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      throw new AppError(`Error al obtener contribuciones: ${error.message}`, 500);
+    }
+    return { count, contributions: data };
+  }
 }

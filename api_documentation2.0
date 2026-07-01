@@ -526,3 +526,57 @@ USING (true);
 | `GET` | `/investigations/my` | Mis investigaciones creadas | ✅ (Especialista) |
 | `PATCH` | `/investigations/:id` | Actualizar investigación | ✅ (Creador) |
 | `DELETE` | `/investigations/:id` | Desactivar investigación | ✅ (Creador) |
+| `GET` | `/investigations/:id/contributions` | Listar contribuciones por investigación | ✅ (Creador) |
+
+---
+
+## 12. Avistamientos Independientes (Sightings)
+
+Estos endpoints permiten crear y gestionar avistamientos (sightings) que no están vinculados a ninguna investigación.
+
+### 12.1 Crear un avistamiento independiente
+- **Endpoint:** `POST /sightings`
+- **Autenticación:** Requerida
+- **Content-Type:** `multipart/form-data`
+- **Descripción:** Sube una foto y crea un avistamiento independiente en estado 'pending'.
+
+**Form Data Fields:**
+- `photo`: (Archivo Binario, requerido)
+- `preliminary_species`: string (opcional)
+- `observed_at`: string (fecha ISO, opcional)
+- `latitude`: number (opcional)
+- `longitude`: number (opcional)
+- `gps_accuracy`: number (opcional)
+
+**Respuesta Exitosa (201 Created):**
+```json
+{
+  "sighting_id": "uuid",
+  "photo_url": "https://..."
+}
+```
+
+### 12.2 Listar avistamientos pendientes
+- **Endpoint:** `GET /sightings/pending`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Descripción:** Lista los avistamientos independientes que requieren validación.
+
+### 12.3 Validar avistamiento
+- **Endpoint:** `PATCH /sightings/:id/validate`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Body:** `{ "validated_species_id": "uuid", "expert_comment": "texto", "expert_rating": 5 }`
+
+### 12.4 Apelar avistamiento
+- **Endpoint:** `PATCH /sightings/:id/appeal`
+- **Autenticación:** Requerida (Solo Especialistas)
+- **Body:** `{ "notes": "motivo de revisión" }`
+
+### 12.5 Mis avistamientos independientes
+- **Endpoint:** `GET /sightings/my`
+- **Autenticación:** Requerida
+- **Descripción:** Retorna los avistamientos creados por el usuario autenticado.
+
+### 12.6 Feed de avistamientos independientes
+- **Endpoint:** `GET /sightings/feed`
+- **Autenticación:** Opcional
+- **Descripción:** Retorna el feed de avistamientos. Oculta coordenadas si no hay sesión.
