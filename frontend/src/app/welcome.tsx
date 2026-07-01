@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
       <View style={styles.card}>
         <Ionicons name="checkmark-circle" size={80} color="#48bb78" style={styles.icon} />
         <Text style={styles.title}>¡Bienvenido!</Text>
-        <Text style={styles.message}>Has iniciado sesión correctamente.</Text>
+        <Text style={styles.message}>¡Prueba exitosa! Los cambios se están aplicando correctamente. 🎉</Text>
         
         <TouchableOpacity style={styles.button} onPress={handleLogout}>
           <Text style={styles.buttonText}>Cerrar Sesión</Text>

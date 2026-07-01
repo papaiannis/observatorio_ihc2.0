@@ -47,8 +47,8 @@ export default function LoginScreen() {
 
       // En un caso real, guardaríamos data.token en SecureStore aquí.
 
-      // Navegar a la pantalla de bienvenida
-      router.replace('/welcome');
+      // Navegar a la pantalla principal (tabs)
+      router.replace('/main');
 
     } catch (error: any) {
       Alert.alert('Error de Autenticación', error.message);
