@@ -16,6 +16,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { authStore } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -61,7 +62,8 @@ export default function RegistroScreen() {
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Error al registrarse');
-      router.replace('/welcome');
+      await authStore.setSession(data.token, data.user);
+      router.replace('/observatorio');
     } catch (error: any) {
       Alert.alert('Error de Registro', error.message);
     } finally {

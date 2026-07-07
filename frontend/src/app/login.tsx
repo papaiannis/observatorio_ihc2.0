@@ -17,6 +17,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
+import { authStore } from '../utils/authStore';
+
 const { width } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ihcobservatorio2-202625.onrender.com';
@@ -55,7 +57,8 @@ export default function LoginScreen() {
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Error al iniciar sesión');
-      router.replace('/welcome');
+      await authStore.setSession(data.token, data.user);
+      router.replace('/observatorio');
     } catch (error: any) {
       Alert.alert('Error de Autenticación', error.message);
     } finally {

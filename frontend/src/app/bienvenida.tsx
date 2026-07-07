@@ -85,7 +85,7 @@ export default function BienvenidaScreen() {
           <TouchableOpacity
             style={styles.guestLink}
             activeOpacity={0.7}
-            onPress={() => router.push('/welcome')}
+            onPress={() => router.push('/observatorio')}
           >
             <Text style={styles.guestLinkText}>Entrar como visitante</Text>
           </TouchableOpacity>
