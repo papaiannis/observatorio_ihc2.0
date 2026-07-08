@@ -27,6 +27,7 @@ const C = {
 
 interface ProfileDrawerProps {
   onClose: () => void;
+  onNavigate?: (target: 'sightings' | 'drafts') => void;
 }
 
 interface MenuItem {
@@ -42,7 +43,7 @@ const MENU_ITEMS: MenuItem[] = [
   { icon: 'create-outline', label: 'Editar Perfil', library: 'ionicons' },
 ];
 
-export default function ProfileDrawer({ onClose }: ProfileDrawerProps) {
+export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProps) {
   const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('Usuario');
   const [userBio, setUserBio] = useState('Explorador de la naturaleza venezolana 🌿');
@@ -90,24 +91,33 @@ export default function ProfileDrawer({ onClose }: ProfileDrawerProps) {
 
         {/* ── Opciones del Menú ── */}
         <View style={styles.menuSection}>
-          {MENU_ITEMS.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.menuItem}
-              activeOpacity={0.7}
-              onPress={() => {
-                // Por ahora solo cierra el drawer
-                // Aquí se conectarán las pantallas de cada funcionalidad
-              }}
-            >
-              {item.library === 'material' ? (
-                <MaterialCommunityIcons name={item.icon as any} size={24} color={C.sage} />
-              ) : (
-                <Ionicons name={item.icon as any} size={24} color={C.sage} />
-              )}
-              <Text style={styles.menuLabel}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => onNavigate?.('sightings')}
+          >
+            <MaterialCommunityIcons name="binoculars" size={24} color={C.sage} />
+            <Text style={styles.menuLabel}>Mis Avistamientos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={onClose}>
+            <Ionicons name="folder-outline" size={24} color={C.sage} />
+            <Text style={styles.menuLabel}>Mis Proyectos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => onNavigate?.('drafts')}
+          >
+            <Ionicons name="document-text-outline" size={24} color={C.sage} />
+            <Text style={styles.menuLabel}>Borradores</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={onClose}>
+            <Ionicons name="create-outline" size={24} color={C.sage} />
+            <Text style={styles.menuLabel}>Editar Perfil</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Separador ── */}

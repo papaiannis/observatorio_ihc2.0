@@ -10,10 +10,12 @@ import {
   Platform,
   Alert,
   SafeAreaView,
+  Animated,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import { photoStore, StoredPhoto } from '../utils/photoStore';
+import SightingFormScreen from './SightingFormScreen';
 
 const { width, height } = Dimensions.get('window');
 const THUMB_SIZE = (width - 4) / 3; // 3 columnas con gaps mínimos
@@ -30,28 +32,51 @@ const C = {
   border: '#C8C8C8',
 };
 
-type ViewMode = 'camera' | 'gallery';
+type ViewMode = 'camera' | 'gallery' | 'form';
 
 interface CrearTabProps {
   onClose?: () => void;
+  openGallery?: boolean;
+  onGalleryOpened?: () => void;
 }
 
-export default function CrearTab({ onClose }: CrearTabProps) {
+export default function CrearTab({ onClose, openGallery, onGalleryOpened }: CrearTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('camera');
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<'on' | 'off'>('off');
   const [photos, setPhotos] = useState<StoredPhoto[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<StoredPhoto | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const shutterAnim = useRef(new Animated.Value(0)).current;
+
+  // Animación de obturador (flash blanco breve)
+  const triggerShutter = () => {
+    shutterAnim.setValue(1);
+    Animated.timing(shutterAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // Cargar fotos guardadas al montar el componente
   useEffect(() => {
     setPhotos(photoStore.getAll());
   }, []);
 
+  // Abrir galería automáticamente si lo pide el perfil
+  useEffect(() => {
+    if (openGallery) {
+      setViewMode('gallery');
+      onGalleryOpened?.();
+    }
+  }, [openGallery]);
+
   const handleCapture = useCallback(async () => {
     if (!cameraRef.current) return;
     try {
+      triggerShutter(); // feedback inmediato
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
       if (photo?.uri) {
         const updated = photoStore.addPhoto(photo.uri);
@@ -108,6 +133,10 @@ export default function CrearTab({ onClose }: CrearTabProps) {
               <TouchableOpacity
                 style={styles.gridCell}
                 activeOpacity={0.75}
+                onPress={() => {
+                  setSelectedPhoto(item);
+                  setViewMode('form');
+                }}
                 onLongPress={() => handleDeletePhoto(item.uri)}
               >
                 <Image
@@ -122,6 +151,24 @@ export default function CrearTab({ onClose }: CrearTabProps) {
           />
         )}
       </SafeAreaView>
+    );
+  }
+
+  // ── Vista de Formulario ─────────────────────────────────
+  if (viewMode === 'form' && selectedPhoto) {
+    return (
+      <SightingFormScreen
+        photoUri={selectedPhoto.uri}
+        photoTimestamp={selectedPhoto.timestamp}
+        onBack={() => setViewMode('gallery')}
+        onPublished={() => {
+          // Eliminar la foto de la galería local tras publicar
+          const updated = photoStore.removePhoto(selectedPhoto.uri);
+          setPhotos(updated);
+          setSelectedPhoto(null);
+          setViewMode('camera');
+        }}
+      />
     );
   }
 
@@ -157,6 +204,14 @@ export default function CrearTab({ onClose }: CrearTabProps) {
         style={StyleSheet.absoluteFillObject}
         facing={facing}
         flash={flash}
+      />
+
+      {/* ── Flash de obturador: feedback visual al tomar foto ── */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: '#fff', opacity: shutterAnim, zIndex: 20, pointerEvents: 'none' },
+        ]}
       />
 
       {/* ── Barra superior: controles dentro del visor ── */}

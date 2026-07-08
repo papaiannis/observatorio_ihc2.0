@@ -6,9 +6,9 @@ const C = {
   bg: '#F6F6F6',
   forest: '#1E2A21',
   earth: '#4A3F35',
+  sage: '#9EB36D',
   white: '#FFFFFF',
   gray: '#A09D9A',
-  border: '#E2E2E2',
 };
 
 export default function ObservatorioTab() {
@@ -21,9 +21,13 @@ export default function ObservatorioTab() {
       <View style={styles.topSection}>
         <Text style={styles.headerTitle}>Observatorio</Text>
 
-        <View style={styles.dropdownContainer}>
+        {/* Dropdown unificado: pill + panel son un solo elemento */}
+        <View style={styles.dropdownWrapper}>
           <TouchableOpacity
-            style={styles.dropdownBtn}
+            style={[
+              styles.dropdownPill,
+              isDropdownOpen && styles.dropdownPillOpen,
+            ]}
             activeOpacity={0.8}
             onPress={() => setIsDropdownOpen(!isDropdownOpen)}
           >
@@ -36,48 +40,44 @@ export default function ObservatorioTab() {
           </TouchableOpacity>
 
           {isDropdownOpen && (
-            <View style={styles.dropdownMenu}>
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  setFilterMode('Todo');
-                  setIsDropdownOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.dropdownOptionText,
-                    filterMode === 'Todo' && styles.dropdownOptionTextActive,
-                  ]}
-                >
-                  Todo
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity
-                style={styles.dropdownOption}
-                onPress={() => {
-                  setFilterMode('En proyecto');
-                  setIsDropdownOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.dropdownOptionText,
-                    filterMode === 'En proyecto' && styles.dropdownOptionTextActive,
-                  ]}
-                >
-                  En proyecto
-                </Text>
-              </TouchableOpacity>
+            <View style={styles.dropdownPanel}>
+              {/* 5px de aire entre el pill y el inicio de opciones */}
+              <View style={{ height: 5 }} />
+
+              {(['Todo', 'En proyecto'] as const).map((option) => {
+                const selected = filterMode === option;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.dropdownOption}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setFilterMode(option);
+                      setIsDropdownOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownOptionText,
+                        selected && styles.dropdownOptionTextActive,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                    {selected && (
+                      <Ionicons name="checkmark" size={16} color={C.sage} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </View>
       </View>
 
-      {/* Estado Vacío de Publicaciones */}
+      {/* Estado Vacío */}
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>sin publicaciones...</Text>
+        <Text style={styles.emptyText}>Aún no hay avistamientos</Text>
       </View>
     </View>
   );
@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
     alignItems: 'center',
+    zIndex: 100,
   },
   headerTitle: {
     fontFamily: 'Poppins_600SemiBold',
@@ -99,46 +100,58 @@ const styles = StyleSheet.create({
     color: C.forest,
     marginBottom: 20,
   },
-  dropdownContainer: {
+
+  // ── Dropdown unificado ─────────────────────────────────────
+  dropdownWrapper: {
     width: '100%',
-    zIndex: 100,
     position: 'relative',
+    zIndex: 100,
   },
-  dropdownBtn: {
+  dropdownPill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: C.bg,
-    borderWidth: 1.5,
-    borderColor: '#D4D4D4',
+    backgroundColor: C.white,
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    width: '100%',
+    // Sombra elevada – sin borde gris
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  dropdownPillOpen: {
+    // Mantiene el mismo radio redondeado aun con el panel abierto
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   dropdownText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 15,
     color: C.forest,
   },
-  dropdownMenu: {
+  dropdownPanel: {
     position: 'absolute',
-    top: 48,
+    top: 50, // 48px del pill + 2px de margen visual
     left: 0,
     right: 0,
     backgroundColor: C.white,
     borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#D4D4D4',
-    paddingVertical: 4,
+    paddingBottom: 6,
+    // Misma sombra de elevación
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 5,
-    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
+    zIndex: 150,
   },
   dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 20,
   },
@@ -151,10 +164,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     color: C.forest,
   },
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: C.border,
-  },
+
+  // ── Estado vacío ─────────────────────────────────────────
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -163,7 +174,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 18,
+    fontSize: 16,
     color: C.gray,
     fontStyle: 'italic',
   },

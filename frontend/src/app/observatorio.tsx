@@ -22,22 +22,29 @@ import ComunidadTab from '../components/ComunidadTab';
 import ConfiguracionTab from '../components/ConfiguracionTab';
 
 const { width } = Dimensions.get('window');
-const DRAWER_TRANSLATE_X = width * 0.65; // La pantalla principal se desplaza un 65% a la derecha
-const DRAWER_SCALE = 0.85; // La pantalla principal se encoge como tarjeta sobre mesa
-const DRAWER_BORDER_RADIUS = 24;
+
+// Pantalla principal se desplaza un 65% a la derecha al abrir el drawer
+const MAIN_TRANSLATE_X = width * 0.65;
+const MAIN_SCALE = 0.85;
+const MAIN_BORDER_RADIUS = 24;
+
+// El drawer entra desde fuera de la pantalla (izquierda)
+const DRAWER_WIDTH = width * 0.72;
 
 const C = {
   bg: '#F6F6F6',
   sage: '#9EB36D',
   drawerBg: '#FFEDDA',
+  scrim: 'rgba(0,0,0,0.4)',
 };
 
 export default function ObservatorioScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('observatorio');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showDraftsOnCrear, setShowDraftsOnCrear] = useState(false);
 
-  // Animaciones del drawer
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  // Animación principal: controla todo con un único valor 0→1
+  const anim = useRef(new Animated.Value(0)).current;
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -47,73 +54,99 @@ export default function ObservatorioScreen() {
 
   if (!fontsLoaded) return null;
 
-  // ── Abrir/Cerrar el Drawer con animación ──────────────────
+  // ── Abrir con timing ease-out (275ms) ─────────────────────
   const openDrawer = () => {
     setDrawerOpen(true);
-    Animated.spring(slideAnim, {
+    Animated.timing(anim, {
       toValue: 1,
+      duration: 275,
       useNativeDriver: true,
-      tension: 40,
-      friction: 8,
     }).start();
   };
 
+  // ── Cerrar con timing ease-in (220ms) ─────────────────────
   const closeDrawer = () => {
-    Animated.spring(slideAnim, {
+    Animated.timing(anim, {
       toValue: 0,
+      duration: 220,
       useNativeDriver: true,
-      tension: 40,
-      friction: 8,
-    }).start(() => {
-      setDrawerOpen(false);
-    });
+    }).start(() => setDrawerOpen(false));
   };
 
-  // ── Valores interpolados para la animación ────────────────
-  const mainTranslateX = slideAnim.interpolate({
+  const handleDrawerNavigate = (target: 'sightings' | 'drafts') => {
+    closeDrawer();
+    if (target === 'drafts') {
+      setActiveTab('crear');
+      setShowDraftsOnCrear(true);
+    } else if (target === 'sightings') {
+      setActiveTab('comunidad');
+    }
+  };
+
+  // ── Interpolaciones para la PANTALLA PRINCIPAL ────────────
+  const mainTranslateX = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, DRAWER_TRANSLATE_X],
+    outputRange: [0, MAIN_TRANSLATE_X],
+  });
+  const mainScale = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, MAIN_SCALE],
+  });
+  const mainBorderRadius = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, MAIN_BORDER_RADIUS],
   });
 
-  const mainScale = slideAnim.interpolate({
+  // ── Interpolaciones para el DRAWER (slide-in desde izquierda) ──
+  const drawerTranslateX = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, DRAWER_SCALE],
+    outputRange: [-DRAWER_WIDTH, 0],
   });
 
-  const mainBorderRadius = slideAnim.interpolate({
+  // ── Interpolaciones para el SCRIM ────────────────────────
+  const scrimOpacity = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, DRAWER_BORDER_RADIUS],
+    outputRange: [0, 1],
   });
 
-  // Renderizador condicional del cuerpo de la pestaña activa
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'observatorio':
-        return <ObservatorioTab />;
-      case 'documentos':
-        return <DocumentosTab />;
-      case 'crear':
-        return <CrearTab onClose={() => setActiveTab('observatorio')} />;
-      case 'comunidad':
-        return <ComunidadTab />;
-      case 'configuracion':
-        return <ConfiguracionTab />;
-      default:
-        return <ObservatorioTab />;
+      case 'observatorio': return <ObservatorioTab />;
+      case 'documentos':   return <DocumentosTab />;
+      case 'crear':        return <CrearTab
+          onClose={() => setActiveTab('observatorio')}
+          openGallery={showDraftsOnCrear}
+          onGalleryOpened={() => setShowDraftsOnCrear(false)}
+        />;
+      case 'comunidad':    return <ComunidadTab />;
+      case 'configuracion': return <ConfiguracionTab />;
+      default:             return <ObservatorioTab />;
     }
   };
 
   return (
     <View style={styles.root}>
       <StatusBar
-        barStyle={activeTab === 'crear' ? 'light-content' : drawerOpen ? 'light-content' : 'dark-content'}
-        backgroundColor={activeTab === 'crear' ? '#000000' : drawerOpen ? C.drawerBg : C.sage}
+        barStyle={activeTab === 'crear' ? 'light-content' : 'dark-content'}
+        backgroundColor={activeTab === 'crear' ? '#000000' : C.sage}
       />
 
-      {/* ── CAPA DE FONDO: PERFIL ── */}
-      {drawerOpen && <ProfileDrawer onClose={closeDrawer} />}
+      {/* ── CAPA 0: FONDO DEL DRAWER ── */}
+      <View style={[styles.drawerBg, { width: DRAWER_WIDTH }]} />
 
-      {/* ── CAPA PRINCIPAL ANIMADA (se desliza como tarjeta) ── */}
+      {/* ── CAPA 1: DRAWER (slide-in desde izquierda) ── */}
+      {drawerOpen && (
+        <Animated.View
+          style={[
+            styles.drawerContainer,
+            { width: DRAWER_WIDTH, transform: [{ translateX: drawerTranslateX }] },
+          ]}
+        >
+          <ProfileDrawer onClose={closeDrawer} onNavigate={handleDrawerNavigate} />
+        </Animated.View>
+      )}
+
+      {/* ── CAPA 2: PANTALLA PRINCIPAL ANIMADA ── */}
       <Animated.View
         style={[
           styles.mainScreen,
@@ -127,14 +160,19 @@ export default function ObservatorioScreen() {
           drawerOpen && styles.mainScreenElevated,
         ]}
       >
-        {/* Capa touch para cerrar si el drawer está abierto */}
+        {/* ── SCRIM semitransparente sobre la pantalla principal ── */}
         {drawerOpen && (
-          <TouchableWithoutFeedback onPress={closeDrawer}>
-            <View style={styles.overlay} />
-          </TouchableWithoutFeedback>
+          <Animated.View
+            style={[styles.scrim, { opacity: scrimOpacity }]}
+            pointerEvents="box-none"
+          >
+            <TouchableWithoutFeedback onPress={closeDrawer}>
+              <View style={StyleSheet.absoluteFillObject} />
+            </TouchableWithoutFeedback>
+          </Animated.View>
         )}
 
-        {/* ── HEADER PERSISTENTE ── */}
+        {/* ── HEADER ── */}
         {activeTab !== 'crear' && (
           <Header
             onAvatarPress={drawerOpen ? closeDrawer : openDrawer}
@@ -142,13 +180,15 @@ export default function ObservatorioScreen() {
           />
         )}
 
-        {/* ── CUERPO CON CONTENIDO INTERCAMBIABLE ── */}
+        {/* ── CONTENIDO ── */}
         <View style={styles.mainContent} pointerEvents={drawerOpen ? 'none' : 'auto'}>
           {renderTabContent()}
         </View>
 
-        {/* ── FOOTER PERSISTENTE CON ANIMACIÓN FLUIDA ── */}
-        {activeTab !== 'crear' && <Footer activeTab={activeTab} onTabPress={setActiveTab} />}
+        {/* ── FOOTER ── */}
+        {activeTab !== 'crear' && (
+          <Footer activeTab={activeTab} onTabPress={setActiveTab} />
+        )}
       </Animated.View>
     </View>
   );
@@ -159,26 +199,47 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.drawerBg,
   },
+
+  // Fondo estático detrás del drawer (visible cuando la pantalla se aleja)
+  drawerBg: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: C.drawerBg,
+  },
+
+  // El drawer propiamente dicho: flotante desde la izquierda
+  drawerContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 10,
+    // Sin sombra extra — la elevación visual la da el scrim sobre la pantalla principal
+  },
+
+  // Pantalla principal
   mainScreen: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
     backgroundColor: C.bg,
     overflow: 'hidden',
-    // Posición absoluta para que se superponga al ProfileDrawer
-    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
   },
-  mainScreenElevated: {
-    shadowColor: '#000',
-    shadowOffset: { width: -8, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 16,
-  },
+
+  // Sombra extra cuando la tarjeta está flotando — eliminada para que
+  // la sombra quede solo en el panel del drawer
+  mainScreenElevated: {},
+
   mainContent: {
     flex: 1,
   },
-  overlay: {
+
+  // Scrim oscuro rgba(0,0,0,0.4) que cubre la pantalla principal
+  scrim: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: C.scrim,
     zIndex: 999,
-    backgroundColor: 'transparent',
   },
 });
