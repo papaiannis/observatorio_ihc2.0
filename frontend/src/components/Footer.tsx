@@ -28,7 +28,7 @@ interface FooterProps {
 
 const TABS: { id: TabType; icon: string; library: 'ionicons' | 'material' }[] = [
   { id: 'observatorio', icon: 'dome-light', library: 'material' },
-  { id: 'documentos', icon: 'document-text-outline', library: 'ionicons' },
+  { id: 'documentos', icon: 'folder-open-outline', library: 'ionicons' },
   { id: 'crear', icon: 'add', library: 'ionicons' },
   { id: 'comunidad', icon: 'people-outline', library: 'ionicons' },
   { id: 'configuracion', icon: 'settings-sharp', library: 'ionicons' },

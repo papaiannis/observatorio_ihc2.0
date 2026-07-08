@@ -11,25 +11,28 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
+import { WebView } from 'react-native-webview';
 import { authStore as auth } from '../utils/authStore';
 
+const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
+// ── Paleta Ajustada al Diseño ─────────────────────────
 const C = {
-  bg: '#F6F6F6',
-  forest: '#1E2A21',
-  earth: '#4A3F35',
   sage: '#9EB36D',
+  earth: '#4A3F35',
+  avatarBg: '#FCECDA',
   white: '#FFFFFF',
   gray: '#A09D9A',
-  border: '#E0E0E0',
-  red: '#E57373',
+  border: '#A09D9A',
+  red: '#D14343',
   redBg: '#FFF0F0',
-  placeholder: '#B0B0B0',
 };
 
 interface SightingFormProps {
@@ -47,8 +50,14 @@ export default function SightingFormScreen({
 }: SightingFormProps) {
   const insets = useSafeAreaInsets();
 
-  // Fecha y hora auto-rellenadas desde el timestamp de la foto
-  const photoDate = new Date(photoTimestamp);
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+  });
+
+  // ── Lógica de Fecha y Hora (Auto-rellenada) ───────────────
+  const photoDate = new Date(photoTimestamp || Date.now());
   const defaultDate = photoDate.toLocaleDateString('es-VE', {
     day: '2-digit',
     month: '2-digit',
@@ -62,12 +71,13 @@ export default function SightingFormScreen({
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState(defaultTime);
   const [location, setLocation] = useState('');
-  const [latitude, setLatitude] = useState<string>('');
-  const [longitude, setLongitude] = useState<string>('');
   const [species, setSpecies] = useState('');
   const [question, setQuestion] = useState('');
 
-  // Flags de edición para badge "Metadatos editados"
+  const [latitude, setLatitude] = useState<string>('');
+  const [longitude, setLongitude] = useState<string>('');
+
+  // ── Banderas para "Metadatos editados" ────────────────────
   const [dateEdited, setDateEdited] = useState(false);
   const [timeEdited, setTimeEdited] = useState(false);
   const [locationEdited, setLocationEdited] = useState(false);
@@ -77,7 +87,7 @@ export default function SightingFormScreen({
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [publishing, setPublishing] = useState(false);
 
-  // ── Auto-rellenar ubicación vía GPS ──────────────────────
+  // ── Obtener GPS automáticamente ───────────────────────────
   useEffect(() => {
     const fetchLocation = async () => {
       try {
@@ -94,7 +104,7 @@ export default function SightingFormScreen({
         setLatitude(lat.toFixed(6));
         setLongitude(lng.toFixed(6));
 
-        // Geocodificación inversa para nombre legible
+        // Geocodificación inversa
         const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
         if (geo) {
           const parts = [geo.district || geo.subregion, geo.city, geo.country].filter(Boolean);
@@ -111,7 +121,7 @@ export default function SightingFormScreen({
     fetchLocation();
   }, []);
 
-  // ── Publicar avistamiento ─────────────────────────────────
+  // ── Lógica de Publicación ─────────────────────────────────
   const handlePublish = async () => {
     if (publishing) return;
     setPublishing(true);
@@ -124,31 +134,20 @@ export default function SightingFormScreen({
         return;
       }
 
-      // Construir FormData
       const formData = new FormData();
-
-      // Adjuntar la imagen
       const fileName = photoUri.split('/').pop() ?? 'photo.jpg';
       const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
       formData.append('file', { uri: photoUri, name: fileName, type: fileType } as any);
 
-      // Campos opcionales
       if (species.trim()) formData.append('preliminary_species', species.trim());
       if (latitude && longitude) {
         formData.append('latitude', latitude);
         formData.append('longitude', longitude);
       }
 
-      // Convertir fecha y hora a ISO 8601
-      try {
-        const [d, m, y] = date.split('/');
-        const [h, min] = time.split(':');
-        const iso = new Date(
-          parseInt(`20${y}`), parseInt(m) - 1, parseInt(d),
-          parseInt(h), parseInt(min)
-        ).toISOString();
-        formData.append('observed_at', iso);
-      } catch { /* Si no se puede parsear, el backend usará la fecha actual */ }
+      if (metadataEdited) {
+        formData.append('metadata_edited', 'true');
+      }
 
       const res = await fetch(`${API_URL}/sightings`, {
         method: 'POST',
@@ -171,25 +170,29 @@ export default function SightingFormScreen({
     }
   };
 
-  return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* ── Header propio del formulario ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={C.earth} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Formulario de registro</Text>
+  if (!fontsLoaded) return null;
 
-        {/* Badge de metadatos editados */}
-        {metadataEdited && (
-          <View style={styles.editedBadge}>
-            <Text style={styles.editedBadgeText}>Metadatos editados</Text>
-          </View>
-        )}
+  return (
+    <View style={styles.root}>
+      {/* ── BARRA SUPERIOR VERDE ── */}
+      <View style={[styles.topHeader, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity style={styles.avatarContainer} activeOpacity={0.8}>
+          <Ionicons name="person" size={20} color={C.earth} />
+        </TouchableOpacity>
+
+        <View style={styles.topHeaderRight}>
+          <TouchableOpacity style={styles.headerIconBtn}>
+            <Ionicons name="search-outline" size={24} color={C.earth} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn}>
+            <Ionicons name="add" size={30} color={C.earth} />
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* ── CONTENEDOR PRINCIPAL BLANCO ── */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.mainCard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
@@ -198,110 +201,150 @@ export default function SightingFormScreen({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Vista previa de la foto ── */}
-          <View style={styles.photoPreviewContainer}>
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
+          {/* ── Cabecera del Formulario ── */}
+          <View style={styles.formHeaderRow}>
+            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={24} color={C.earth} />
+            </TouchableOpacity>
+            <Text style={styles.formTitle}>Formulario de registro</Text>
           </View>
 
-          {/* ── Campos de Metadatos ── */}
-          <View style={styles.fieldsCard}>
+          {/* Etiqueta de Metadatos */}
+          {metadataEdited && (
+            <View style={styles.badgeWrapper}>
+              <View style={styles.editedBadge}>
+                <Text style={styles.editedBadgeText}>Metadatos editados</Text>
+              </View>
+            </View>
+          )}
 
-            {/* Fecha */}
-            <View style={styles.fieldRow}>
-              <Ionicons name="calendar-outline" size={18} color={C.sage} style={styles.fieldIcon} />
+          {/* ── Campos de Entrada (Fecha, Hora, Ubicación) ── */}
+          <View style={styles.inputsSection}>
+
+            <View style={styles.inputContainer}>
               <TextInput
-                style={styles.fieldInput}
+                style={styles.inputField}
                 value={date}
                 onChangeText={(v) => { setDate(v); setDateEdited(v !== defaultDate); }}
-                placeholder="dd/mm/aa"
-                placeholderTextColor={C.placeholder}
+                placeholder="01/01/00"
+                placeholderTextColor={C.gray}
               />
+              <Ionicons name="chevron-down" size={16} color={C.earth} />
             </View>
 
-            <View style={styles.fieldDivider} />
-
-            {/* Hora */}
-            <View style={styles.fieldRow}>
-              <Ionicons name="time-outline" size={18} color={C.sage} style={styles.fieldIcon} />
+            <View style={styles.inputContainer}>
               <TextInput
-                style={styles.fieldInput}
+                style={styles.inputField}
                 value={time}
                 onChangeText={(v) => { setTime(v); setTimeEdited(v !== defaultTime); }}
-                placeholder="hh:mm"
-                placeholderTextColor={C.placeholder}
+                placeholder="Hora"
+                placeholderTextColor={C.gray}
               />
+              <Ionicons name="chevron-down" size={16} color={C.earth} />
             </View>
 
-            <View style={styles.fieldDivider} />
-
-            {/* Ubicación */}
-            <View style={styles.fieldRow}>
-              <Ionicons name="location-outline" size={18} color={C.sage} style={styles.fieldIcon} />
+            <View style={styles.inputContainer}>
               {loadingLocation ? (
-                <View style={styles.locationLoader}>
-                  <ActivityIndicator size="small" color={C.sage} />
-                  <Text style={styles.locationLoadingText}>Obteniendo ubicación...</Text>
-                </View>
+                <ActivityIndicator size="small" color={C.earth} style={{ flex: 1, alignItems: 'flex-start' }} />
               ) : (
                 <TextInput
-                  style={[styles.fieldInput, styles.locationInput]}
+                  style={styles.inputField}
                   value={location}
                   onChangeText={(v) => { setLocation(v); setLocationEdited(true); }}
                   placeholder="Ubicación"
-                  placeholderTextColor={C.placeholder}
-                  multiline
+                  placeholderTextColor={C.gray}
                 />
               )}
             </View>
           </View>
 
-          {/* ── Mapa con coordenadas ── */}
-          {latitude && longitude ? (
-            <View style={styles.mapCard}>
-              <View style={styles.mapPlaceholder}>
-                <Ionicons name="map-outline" size={36} color={C.sage} />
-                <View style={styles.mapCoordsBox}>
-                  <Text style={styles.mapCoordLabel}>Latitud</Text>
-                  <Text style={styles.mapCoordValue}>{latitude}</Text>
-                </View>
-                <View style={styles.mapCoordsDivider} />
-                <View style={styles.mapCoordsBox}>
-                  <Text style={styles.mapCoordLabel}>Longitud</Text>
-                  <Text style={styles.mapCoordValue}>{longitude}</Text>
-                </View>
+          {/* ── Mapa Real con Leaflet (OpenStreetMap) ── */}
+          <View style={styles.mapContainer}>
+            {latitude && longitude ? (
+              <WebView
+                style={{ flex: 1, borderRadius: 16 }}
+                originWhitelist={['*']}
+                javaScriptEnabled
+                source={{
+                  html: `<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;border-radius:16px;}</style>
+</head><body>
+<div id="map"></div>
+<script>
+  var lat=${latitude}, lng=${longitude};
+  var map = L.map('map', { zoomControl: true, attributionControl: false })
+              .setView([lat, lng], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+  marker.bindPopup('Tu ubicaci&oacute;n').openPopup();
+  function sendCoords(la, ln) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ lat: la, lng: ln }));
+  }
+  marker.on('dragend', function(e) {
+    var p = e.target.getLatLng();
+    sendCoords(p.lat.toFixed(6), p.lng.toFixed(6));
+  });
+  map.on('click', function(e) {
+    marker.setLatLng(e.latlng);
+    sendCoords(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6));
+  });
+</script>
+</body></html>`,
+                }}
+                onMessage={(event) => {
+                  try {
+                    const { lat: la, lng: ln } = JSON.parse(event.nativeEvent.data);
+                    setLatitude(la);
+                    setLongitude(ln);
+                    setLocationEdited(true);
+                  } catch {}
+                }}
+              />
+            ) : (
+              <View style={styles.mapLoading}>
+                <ActivityIndicator color="#9EB36D" size="small" />
+                <Text style={styles.mapLoadingText}>Cargando mapa...</Text>
               </View>
-            </View>
-          ) : null}
-
-          {/* ── Especie estimada ── */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Especie estimada</Text>
-            <TextInput
-              style={styles.speciesInput}
-              value={species}
-              onChangeText={setSpecies}
-              placeholder="¿Qué crees que es?"
-              placeholderTextColor={C.placeholder}
-              returnKeyType="done"
-            />
+            )}
           </View>
 
-          {/* ── Preguntas ── */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Preguntas</Text>
-              <Text style={styles.charCount}>{question.length}/130</Text>
+          {/* ── Especie Estimada (Igual a la sección Preguntas) ── */}
+          <View style={styles.speciesSection}>
+            <Text style={styles.sectionTitleCenter}>¿Qué especie crees que es?</Text>
+            <View style={styles.speciesInputRow}>
+              <TextInput
+                style={styles.speciesInput}
+                value={species}
+                onChangeText={setSpecies}
+                placeholder="Escribe tu respuesta acá..."
+                placeholderTextColor={C.gray}
+              />
             </View>
-            <TextInput
-              style={styles.questionInput}
-              value={question}
-              onChangeText={(v) => setQuestion(v.slice(0, 130))}
-              placeholder="Escribe tu pregunta acá..."
-              placeholderTextColor={C.placeholder}
-              multiline
-              maxLength={130}
-              textAlignVertical="top"
-            />
+          </View>
+
+          {/* ── Sección de Preguntas ── */}
+          <View style={styles.questionsSection}>
+            <Text style={styles.sectionTitleCenter}>Preguntas</Text>
+
+            <View style={styles.questionInputRow}>
+              <TextInput
+                style={styles.questionInput}
+                value={question}
+                onChangeText={(v) => setQuestion(v.slice(0, 130))}
+                placeholder="Escribe tu pregunta acá.."
+                placeholderTextColor={C.gray}
+                multiline
+                maxLength={130}
+              />
+              <TouchableOpacity activeOpacity={0.7}>
+                <Ionicons name="add" size={28} color={C.earth} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.charCount}>{question.length}/130 caracteres</Text>
           </View>
 
           {/* ── Botón Publicar ── */}
@@ -318,7 +361,6 @@ export default function SightingFormScreen({
             )}
           </TouchableOpacity>
 
-          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -328,29 +370,67 @@ export default function SightingFormScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: C.bg,
+    backgroundColor: C.sage,
   },
 
-  // ── Header ──────────────────────────────────────────────
-  header: {
+  topHeader: {
+    backgroundColor: C.sage,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: C.white,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    gap: 12,
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  backBtn: {
+  avatarContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.avatarBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  headerIconBtn: {
     padding: 4,
   },
-  headerTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 17,
-    color: C.earth,
+
+  mainCard: {
     flex: 1,
+    backgroundColor: C.white,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 30,
+    paddingTop: 30,
+    paddingBottom: 50,
+  },
+
+  formHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  backBtn: {
+    marginRight: 12,
+  },
+  formTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 18,
+    color: C.earth,
+  },
+
+  badgeWrapper: {
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   editedBadge: {
     backgroundColor: C.redBg,
@@ -366,178 +446,112 @@ const styles = StyleSheet.create({
     color: C.red,
   },
 
-  // ── Scroll ──────────────────────────────────────────────
-  scroll: { flex: 1 },
-  scrollContent: {
-    padding: 20,
-    gap: 16,
+  inputsSection: {
+    gap: 20,
+    marginBottom: 30,
   },
-
-  // ── Foto previa ─────────────────────────────────────────
-  photoPreviewContainer: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  photoPreview: {
-    width: '100%',
-    height: 220,
-    backgroundColor: C.border,
-  },
-
-  // ── Card de campos ──────────────────────────────────────
-  fieldsCard: {
-    backgroundColor: C.white,
-    borderRadius: 18,
-    paddingVertical: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-  },
-  fieldIcon: {
-    marginRight: 14,
-  },
-  fieldInput: {
-    flex: 1,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: C.earth,
-  },
-  locationInput: {
-    minHeight: 40,
-  },
-  locationLoader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  locationLoadingText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
-    color: C.gray,
-  },
-  fieldDivider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginHorizontal: 18,
-  },
-
-  // ── Mapa ────────────────────────────────────────────────
-  mapCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  mapPlaceholder: {
-    backgroundColor: C.white,
-    borderRadius: 18,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    minHeight: 100,
-  },
-  mapCoordsBox: {
-    alignItems: 'center',
-  },
-  mapCoordLabel: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
-    color: C.gray,
-    marginBottom: 2,
-  },
-  mapCoordValue: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: C.forest,
-  },
-  mapCoordsDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: C.border,
-  },
-
-  // ── Secciones ───────────────────────────────────────────
-  sectionCard: {
-    backgroundColor: C.white,
-    borderRadius: 18,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  sectionHeaderRow: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 16,
-    color: C.forest,
-    marginBottom: 12,
-  },
-  charCount: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: C.gray,
-  },
-  speciesInput: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: C.earth,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    paddingVertical: 6,
+    paddingBottom: 8,
   },
-  questionInput: {
+  inputField: {
+    flex: 1,
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: C.earth,
-    minHeight: 80,
-    lineHeight: 22,
   },
 
-  // ── Botón Publicar ──────────────────────────────────────
+  mapContainer: {
+    height: 220,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 40,
+    backgroundColor: '#E5F3EB',
+  },
+  mapLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    flexDirection: 'row',
+  },
+  mapLoadingText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: '#9EB36D',
+  },
+
+  // ── Estilos compartidos de las Secciones (Especie y Preguntas) ──
+  sectionTitleCenter: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    color: C.earth,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+
+  // ── Especie Estimada ──
+  speciesSection: {
+    marginBottom: 40,
+  },
+  speciesInputRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    paddingBottom: 8,
+  },
+  speciesInput: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: C.earth,
+    textAlign: 'left',
+  },
+
+  // ── Preguntas ──
+  questionsSection: {
+    marginBottom: 40,
+  },
+  questionInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  questionInput: {
+    flex: 1,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: C.earth,
+    marginRight: 10,
+  },
+  charCount: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: C.gray,
+  },
+
+  // ── Botón Publicar ──
   publishBtn: {
     backgroundColor: C.earth,
-    borderRadius: 30,
+    borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 8,
+    width: '100%',
     shadowColor: C.earth,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
+    shadowRadius: 15,
     elevation: 6,
   },
   publishBtnDisabled: {
     opacity: 0.6,
   },
   publishBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 17,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 20,
     color: C.white,
-    letterSpacing: 0.5,
   },
 });
