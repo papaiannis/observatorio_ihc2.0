@@ -134,3 +134,16 @@ export const getSightingsFeed = async (req: Request, res: Response, next: NextFu
     next(error);
   }
 };
+
+export const deleteSighting = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = req.user;
+    if (!user || !user.token) throw new AppError('No autenticado', 401);
+
+    const { id } = req.params;
+    const result = await SightingService.deleteSighting(id, user.id, user.token);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

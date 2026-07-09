@@ -25,10 +25,33 @@ export const updateOwnProfile = async (
   userId: string,
   updates: { avatar_url?: string; preferencias?: Record<string, unknown> },
   userToken: string,
+  file?: Express.Multer.File,
 ) => {
-  // Filtrar solo los campos que llegaron (no sobreescribir con undefined)
   const payload: Record<string, unknown> = {};
-  if (updates.avatar_url !== undefined) payload.avatar_url = updates.avatar_url;
+  const client = createAuthenticatedClient(userToken);
+
+  if (file) {
+    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    const filePath = `avatars/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    
+    // Subir foto a Storage ('observaciones-media')
+    const { error: uploadErr } = await client.storage
+      .from('observaciones-media')
+      .upload(filePath, file.buffer, { contentType: file.mimetype });
+
+    if (uploadErr) {
+      throw new AppError(`Error al subir avatar: ${uploadErr.message}`, 500);
+    }
+
+    const { data: publicUrlData } = client.storage
+      .from('observaciones-media')
+      .getPublicUrl(filePath);
+      
+    payload.avatar_url = publicUrlData.publicUrl;
+  } else if (updates.avatar_url !== undefined) {
+    payload.avatar_url = updates.avatar_url;
+  }
+
   if (updates.preferencias !== undefined) payload.preferencias = updates.preferencias;
 
   if (Object.keys(payload).length === 0) {

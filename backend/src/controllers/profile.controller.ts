@@ -22,10 +22,22 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { avatar_url, preferencias } = req.body;
+    let preferenciasParseadas;
+    if (typeof preferencias === 'string') {
+      try {
+        preferenciasParseadas = JSON.parse(preferencias);
+      } catch (e) {
+        preferenciasParseadas = preferencias;
+      }
+    } else {
+      preferenciasParseadas = preferencias;
+    }
+
     const updated = await profileService.updateOwnProfile(
       req.user!.id,
-      { avatar_url, preferencias },
+      { avatar_url, preferencias: preferenciasParseadas },
       req.user!.token!,
+      req.file,
     );
     res.json(updated);
   } catch (error) {

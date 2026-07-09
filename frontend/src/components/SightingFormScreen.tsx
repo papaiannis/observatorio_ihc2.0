@@ -149,7 +149,7 @@ export default function SightingFormScreen({
         formData.append('metadata_edited', 'true');
       }
 
-      const res = await fetch(`${API_URL}/sightings`, {
+      const res = await fetch(`${API_URL}/api/v1/sightings`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

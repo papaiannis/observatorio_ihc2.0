@@ -63,7 +63,7 @@ export default function DocumentosTab() {
   const fetchProjects = useCallback(async () => {
     try {
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/investigations/active`, {
+      const res = await fetch(`${API_URL}/api/v1/investigations/active`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error();

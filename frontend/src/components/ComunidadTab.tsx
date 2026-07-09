@@ -78,12 +78,12 @@ export default function ComunidadTab() {
       const { token, user } = await authStore.getSession();
       if (user?.id) setMyUserId(user.id);
 
-      const res = await fetch(`${API_URL}/sightings/feed`, {
+      const res = await fetch(`${API_URL}/api/v1/feed`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
-      const data: Sighting[] = await res.json();
-      setSightings(data);
+      const data = await res.json();
+      setSightings(data.feed || []);
     } catch (e) {
       // Fallo silencioso — el estado vacío lo maneja el ListEmptyComponent
     } finally {
@@ -128,7 +128,7 @@ export default function ComunidadTab() {
         onPress: async () => {
           try {
             const { token } = await authStore.getSession();
-            await fetch(`${API_URL}/sightings/${id}`, {
+            await fetch(`${API_URL}/api/v1/sightings/${id}`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` },
             });

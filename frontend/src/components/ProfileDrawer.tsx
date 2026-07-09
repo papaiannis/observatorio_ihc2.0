@@ -106,12 +106,12 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
     if (!token) return;
     setLoadingSightings(true);
     try {
-      const res = await fetch(`${API_URL}/sightings/my`, {
+      const res = await fetch(`${API_URL}/api/v1/sightings/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setSightings(Array.isArray(data) ? data : []);
+        setSightings(data.sightings || []);
       }
     } catch {}
     setLoadingSightings(false);
@@ -122,12 +122,12 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
     if (!token) return;
     setLoadingProjects(true);
     try {
-      const res = await fetch(`${API_URL}/investigations/my-subscriptions`, {
+      const res = await fetch(`${API_URL}/api/v1/investigations/my-subscriptions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setProjects(Array.isArray(data) ? data : (data.investigations ?? []));
+        setProjects(data.investigations || []);
       }
     } catch {}
     setLoadingProjects(false);
@@ -163,18 +163,26 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
     setAvatarUri(uri);
     await authStore.updateUser({ avatar_url: uri });
 
-    // Intentar sincronizar con el backend como URL pública
-    // (solo funciona si ya la imagen está en un servidor público)
+    // Intentar sincronizar con el backend enviando la imagen con FormData
     try {
-      await fetch(`${API_URL}/profiles/me`, {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'avatar.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`;
+
+      formData.append('avatar', { uri, name: filename, type } as any);
+
+      await fetch(`${API_URL}/api/v1/profiles/me`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          // No establecer Content-Type para FormData, fetch lo generará con el boundary
         },
-        body: JSON.stringify({ avatar_url: uri }),
+        body: formData,
       });
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // ── Guardar edición de perfil ──────────────────────────
@@ -182,7 +190,7 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
     if (saving) return;
     setSaving(true);
     try {
-      await fetch(`${API_URL}/profiles/me`, {
+      await fetch(`${API_URL}/api/v1/profiles/me`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
