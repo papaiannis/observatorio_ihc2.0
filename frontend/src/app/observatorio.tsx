@@ -20,6 +20,7 @@ import DocumentosTab from '../components/DocumentosTab';
 import CrearTab from '../components/CrearTab';
 import ComunidadTab from '../components/ComunidadTab';
 import ConfiguracionTab from '../components/ConfiguracionTab';
+import SightingTrackingScreen, { TrackingSighting } from '../components/SightingTrackingScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -42,6 +43,7 @@ export default function ObservatorioScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('observatorio');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showDraftsOnCrear, setShowDraftsOnCrear] = useState(false);
+  const [trackingSighting, setTrackingSighting] = useState<TrackingSighting | null>(null);
 
   // Animación principal: controla todo con un único valor 0→1
   const anim = useRef(new Animated.Value(0)).current;
@@ -73,13 +75,15 @@ export default function ObservatorioScreen() {
     }).start(() => setDrawerOpen(false));
   };
 
-  const handleDrawerNavigate = (target: 'sightings' | 'drafts') => {
+  const handleDrawerNavigate = (target: 'sightings' | 'drafts' | 'tracking', data?: any) => {
     closeDrawer();
     if (target === 'drafts') {
       setActiveTab('crear');
       setShowDraftsOnCrear(true);
     } else if (target === 'sightings') {
       setActiveTab('comunidad');
+    } else if (target === 'tracking' && data) {
+      setTrackingSighting(data as TrackingSighting);
     }
   };
 
@@ -110,6 +114,15 @@ export default function ObservatorioScreen() {
   });
 
   const renderTabContent = () => {
+    // Si hay un avistamiento seleccionado para tracking, lo mostramos
+    if (trackingSighting) {
+      return (
+        <SightingTrackingScreen
+          sighting={trackingSighting}
+          onBack={() => setTrackingSighting(null)}
+        />
+      );
+    }
     switch (activeTab) {
       case 'observatorio': return <ObservatorioTab />;
       case 'documentos':   return <DocumentosTab />;

@@ -41,7 +41,7 @@ type DrawerView = 'home' | 'sightings' | 'drafts' | 'edit' | 'projects';
 
 interface ProfileDrawerProps {
   onClose: () => void;
-  onNavigate?: (target: 'sightings' | 'drafts') => void;
+  onNavigate?: (target: 'sightings' | 'drafts' | 'tracking', data?: any) => void;
 }
 
 interface Sighting {
@@ -295,26 +295,39 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
             keyExtractor={(i) => i.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <View style={styles.sightingCard}>
-                <Image source={{ uri: item.photo_url }} style={styles.sightingThumb} resizeMode="cover" />
-                <View style={styles.sightingInfo}>
-                  <Text style={styles.sightingSpecies} numberOfLines={1}>
-                    {item.preliminary_species || 'Especie desconocida'}
-                  </Text>
-                  <Text style={styles.sightingDate}>
-                    {new Date(item.observed_at).toLocaleDateString('es-VE', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </Text>
-                  <View style={styles.sightingStatusPill}>
-                    <Text style={styles.sightingStatusText}>
-                      {STATUS_LABELS[item.status] ?? item.status}
+            renderItem={({ item }) => {
+              const isValidated = item.status === 'validated';
+              const CardWrapper = isValidated ? View : TouchableOpacity;
+              return (
+                <CardWrapper
+                  style={styles.sightingCard}
+                  activeOpacity={0.75}
+                  onPress={isValidated ? undefined : () => {
+                    onNavigate?.('tracking', item);
+                  }}
+                >
+                  <Image source={{ uri: item.photo_url }} style={styles.sightingThumb} resizeMode="cover" />
+                  <View style={styles.sightingInfo}>
+                    <Text style={styles.sightingSpecies} numberOfLines={1}>
+                      {item.preliminary_species || 'Especie desconocida'}
                     </Text>
+                    <Text style={styles.sightingDate}>
+                      {new Date(item.observed_at).toLocaleDateString('es-VE', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                      })}
+                    </Text>
+                    <View style={styles.sightingStatusPill}>
+                      <Text style={styles.sightingStatusText}>
+                        {STATUS_LABELS[item.status] ?? item.status}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </View>
-            )}
+                  {!isValidated && (
+                    <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+                  )}
+                </CardWrapper>
+              );
+            }}
           />
         )}
       </View>
