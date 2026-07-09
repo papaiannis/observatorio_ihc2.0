@@ -137,9 +137,11 @@ export default function SightingFormScreen({
       const formData = new FormData();
       const fileName = photoUri.split('/').pop() ?? 'photo.jpg';
       const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-      formData.append('file', { uri: photoUri, name: fileName, type: fileType } as any);
+      formData.append('photo', { uri: photoUri, name: fileName, type: fileType } as any);
 
       if (species.trim()) formData.append('preliminary_species', species.trim());
+      formData.append('observed_at', new Date(photoTimestamp || Date.now()).toISOString());
+      
       if (latitude && longitude) {
         formData.append('latitude', latitude);
         formData.append('longitude', longitude);

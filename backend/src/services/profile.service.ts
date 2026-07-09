@@ -33,7 +33,7 @@ export const updateOwnProfile = async (
   if (file) {
     const fileExt = file.originalname.split('.').pop() || 'jpg';
     const filePath = `avatars/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    
+
     // Subir foto a Storage ('observaciones-media')
     const { error: uploadErr } = await client.storage
       .from('observaciones-media')
@@ -46,7 +46,7 @@ export const updateOwnProfile = async (
     const { data: publicUrlData } = client.storage
       .from('observaciones-media')
       .getPublicUrl(filePath);
-      
+
     payload.avatar_url = publicUrlData.publicUrl;
   } else if (updates.avatar_url !== undefined) {
     payload.avatar_url = updates.avatar_url;
@@ -58,7 +58,6 @@ export const updateOwnProfile = async (
     throw new AppError('Ningún campo válido para actualizar (avatar_url, preferencias)', 400);
   }
 
-  const client = createAuthenticatedClient(userToken);
   const { data, error } = await client
     .from('profiles')
     .update(payload)

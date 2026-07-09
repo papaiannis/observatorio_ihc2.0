@@ -37,22 +37,35 @@ export default function ObservatorioTab() {
 
   const fetchObservatory = useCallback(async () => {
     try {
+      setLoading(true);
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/api/v1/feed/observatory`, {
+      
+      const endpoint = filterMode === 'Todo' 
+        ? `${API_URL}/api/v1/sightings/feed` 
+        : `${API_URL}/api/v1/feed/observatory`;
+
+      const res = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
-      setSightings(data.observatory || []);
+      
+      const fetchedSightings = filterMode === 'Todo'
+        ? data.sightings || []
+        : data.observatory || [];
+
+      setSightings(fetchedSightings);
     } catch (e) {
       // Manejado silenciosamente, se mostrará la lista vacía
+      console.warn('Error fetching observatory:', e);
+      setSightings([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [filterMode]);
 
-  useEffect(() => { fetchObservatory(); }, []);
+  useEffect(() => { fetchObservatory(); }, [fetchObservatory]);
 
   const onRefresh = () => { setRefreshing(true); fetchObservatory(); };
 
@@ -61,15 +74,22 @@ export default function ObservatorioTab() {
       day: '2-digit', month: 'short', year: 'numeric',
     });
 
+    const username = Array.isArray(item.profiles) ? item.profiles[0]?.username : item.profiles?.username;
+    const speciesObj = Array.isArray(item.species) ? item.species[0] : item.species;
+
     return (
       <View style={styles.card}>
-        <Image source={{ uri: item.photo_url }} style={styles.cardImage} resizeMode="cover" />
+        {item.photo_url ? (
+          <Image source={{ uri: item.photo_url }} style={styles.cardImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.cardImage} />
+        )}
         <View style={styles.cardBody}>
           <Text style={styles.cardSpecies} numberOfLines={1}>
-            {item.species?.common_name || item.species?.scientific_name || item.preliminary_species || 'Especie'}
+            {speciesObj?.common_name || speciesObj?.scientific_name || item.preliminary_species || 'Especie'}
           </Text>
           <Text style={styles.cardMeta}>
-            {dateStr} {item.profiles?.username ? ` · @${item.profiles.username}` : ''}
+            {dateStr} {username ? ` · @${username}` : ''}
           </Text>
           {item.decimal_latitude && item.decimal_longitude && (
             <Text style={styles.cardCoords}>

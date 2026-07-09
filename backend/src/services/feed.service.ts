@@ -23,24 +23,25 @@ export interface FeedItem {
  * @param isGuest - True si la petición proviene de un usuario no autenticado
  */
 export const getFeed = async (isGuest: boolean): Promise<FeedItem[]> => {
-  const { data, error } = await supabase
-    .from('investigation_contributions')
-    .select(`
-      id,
-      photo_url,
-      preliminary_species,
-      validated_species_id,
-      observed_at,
-      decimal_latitude,
-      decimal_longitude,
-      created_at,
-      contribution_status,
-      investigation_id,
-      profiles!investigation_contributions_user_id_fkey!inner(username, avatar_url)
-    `)
-    .in('contribution_status', ['validated', 'pending', 'in_review'])
-    .order('created_at', { ascending: false })
-    .limit(100);
+    const { data, error } = await supabase
+      .from('investigation_contributions')
+      .select(`
+        id,
+        photo_url,
+        preliminary_species,
+        validated_species_id,
+        observed_at,
+        decimal_latitude,
+        decimal_longitude,
+        created_at,
+        contribution_status,
+        investigation_id,
+        profiles (username, avatar_url),
+        species (scientific_name, common_name)
+      `)
+      .in('contribution_status', ['validated', 'pending', 'in_review'])
+      .order('created_at', { ascending: false })
+      .limit(100);
 
   if (error) {
     throw new AppError(`Error al obtener el feed: ${error.message}`, 500);
@@ -66,24 +67,25 @@ export const getFeed = async (isGuest: boolean): Promise<FeedItem[]> => {
  * @param isGuest - True si la petición proviene de un usuario no autenticado
  */
 export const getObservatory = async (isGuest: boolean): Promise<FeedItem[]> => {
-  const { data, error } = await supabase
-    .from('investigation_contributions')
-    .select(`
-      id,
-      photo_url,
-      preliminary_species,
-      validated_species_id,
-      observed_at,
-      decimal_latitude,
-      decimal_longitude,
-      created_at,
-      contribution_status,
-      investigation_id,
-      profiles!investigation_contributions_user_id_fkey!inner(username, avatar_url)
-    `)
-    .eq('contribution_status', 'validated')
-    .order('created_at', { ascending: false })
-    .limit(200);
+    const { data, error } = await supabase
+      .from('investigation_contributions')
+      .select(`
+        id,
+        photo_url,
+        preliminary_species,
+        validated_species_id,
+        observed_at,
+        decimal_latitude,
+        decimal_longitude,
+        created_at,
+        contribution_status,
+        investigation_id,
+        profiles (username, avatar_url),
+        species (scientific_name, common_name)
+      `)
+      .eq('contribution_status', 'validated')
+      .order('created_at', { ascending: false })
+      .limit(200);
 
   if (error) {
     throw new AppError(`Error al obtener el observatorio: ${error.message}`, 500);
