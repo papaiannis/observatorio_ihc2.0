@@ -28,9 +28,6 @@ interface Sighting {
 }
 
 export default function ObservatorioTab() {
-  const [filterMode, setFilterMode] = useState<'Todo' | 'En proyecto'>('Todo');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,9 +37,7 @@ export default function ObservatorioTab() {
       setLoading(true);
       const { token } = await authStore.getSession();
       
-      const endpoint = filterMode === 'Todo' 
-        ? `${API_URL}/api/v1/sightings/feed` 
-        : `${API_URL}/api/v1/feed/observatory`;
+      const endpoint = `${API_URL}/api/v1/sightings/feed`;
 
       const res = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -50,11 +45,11 @@ export default function ObservatorioTab() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       
-      const fetchedSightings = filterMode === 'Todo'
-        ? data.sightings || []
-        : data.observatory || [];
+      // En el observatorio solo se muestran los avistamientos validados
+      const allSightings: Sighting[] = data.sightings || [];
+      const validatedSightings = allSightings.filter(s => s.status === 'validated');
 
-      setSightings(fetchedSightings);
+      setSightings(validatedSightings);
     } catch (e) {
       // Manejado silenciosamente, se mostrará la lista vacía
       console.warn('Error fetching observatory:', e);
@@ -63,7 +58,7 @@ export default function ObservatorioTab() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filterMode]);
+  }, []);
 
   useEffect(() => { fetchObservatory(); }, [fetchObservatory]);
 
@@ -105,38 +100,6 @@ export default function ObservatorioTab() {
     <View style={styles.container}>
       <View style={styles.topSection}>
         <Text style={styles.headerTitle}>Observatorio</Text>
-        <View style={styles.dropdownWrapper}>
-          <TouchableOpacity
-            style={[styles.dropdownPill, isDropdownOpen && styles.dropdownPillOpen]}
-            activeOpacity={0.8}
-            onPress={() => setIsDropdownOpen(!isDropdownOpen)}
-          >
-            <Text style={styles.dropdownText}>{filterMode}</Text>
-            <Ionicons name={isDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={C.forest} />
-          </TouchableOpacity>
-
-          {isDropdownOpen && (
-            <View style={styles.dropdownPanel}>
-              <View style={{ height: 5 }} />
-              {(['Todo', 'En proyecto'] as const).map((option) => {
-                const selected = filterMode === option;
-                return (
-                  <TouchableOpacity
-                    key={option}
-                    style={styles.dropdownOption}
-                    activeOpacity={0.7}
-                    onPress={() => { setFilterMode(option); setIsDropdownOpen(false); }}
-                  >
-                    <Text style={[styles.dropdownOptionText, selected && styles.dropdownOptionTextActive]}>
-                      {option}
-                    </Text>
-                    {selected && <Ionicons name="checkmark" size={16} color={C.sage} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
       </View>
 
       {loading ? (
@@ -178,70 +141,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: C.forest,
     marginBottom: 20,
-  },
-
-  // ── Dropdown unificado ─────────────────────────────────────
-  dropdownWrapper: {
-    width: '100%',
-    position: 'relative',
-    zIndex: 100,
-  },
-  dropdownPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: C.white,
-    borderRadius: 25,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    // Sombra elevada – sin borde gris
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
-  },
-  dropdownPillOpen: {
-    // Mantiene el mismo radio redondeado aun con el panel abierto
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-  },
-  dropdownText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 15,
-    color: C.forest,
-  },
-  dropdownPanel: {
-    position: 'absolute',
-    top: 50, // 48px del pill + 2px de margen visual
-    left: 0,
-    right: 0,
-    backgroundColor: C.white,
-    borderRadius: 18,
-    paddingBottom: 6,
-    // Misma sombra de elevación
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
-    zIndex: 150,
-  },
-  dropdownOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  dropdownOptionText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: C.earth,
-  },
-  dropdownOptionTextActive: {
-    fontFamily: 'Poppins_600SemiBold',
-    color: C.forest,
   },
 
   // ── Lista y Tarjetas ──────────────────────────────────

@@ -78,14 +78,16 @@ export default function ComunidadTab() {
       const { token, user } = await authStore.getSession();
       if (user?.id) setMyUserId(user.id);
 
-      const res = await fetch(`${API_URL}/api/v1/feed`, {
+      const res = await fetch(`${API_URL}/api/v1/sightings/feed`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
-      setSightings(data.feed || []);
+      
+      setSightings(data.sightings || []);
     } catch (e) {
       // Fallo silencioso — el estado vacío lo maneja el ListEmptyComponent
+      console.warn('Error fetching community sightings:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
