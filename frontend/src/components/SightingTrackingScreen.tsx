@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
 // ── Paleta ─────────────────────────────────────────────
 const C = {
@@ -142,7 +142,7 @@ export default function SightingTrackingScreen({
         const { token, user } = await authStore.getSession();
         if (user?.role) setUserRole(user.role.toLowerCase());
 
-        const res = await fetch(`${API_URL}/sightings/${initialSighting.id}`, {
+        const res = await fetch(`${API_URL}/api/v1/sightings/${initialSighting.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -164,7 +164,7 @@ export default function SightingTrackingScreen({
     setSendingAppeal(true);
     try {
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/sightings/${sighting.id}/appeal`, {
+      const res = await fetch(`${API_URL}/api/v1/sightings/${sighting.id}/appeal`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,

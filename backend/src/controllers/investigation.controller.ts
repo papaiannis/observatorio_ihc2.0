@@ -124,9 +124,9 @@ export const getInvestigationContributions = async (req: Request, res: Response,
       id as string,
       user.token,
       {
-        status: status as string,
-        limit: limit ? parseInt(limit as string, 10) : undefined,
-        offset: offset ? parseInt(offset as string, 10) : undefined
+        ...(status && { status: status as string }),
+        ...(limit && { limit: parseInt(limit as string, 10) }),
+        ...(offset && { offset: parseInt(offset as string, 10) })
       }
     );
     res.json(result);

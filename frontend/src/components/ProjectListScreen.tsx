@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -60,7 +60,7 @@ export default function ProjectListScreen({
   const fetchProjects = useCallback(async () => {
     try {
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/investigations/active`, {
+      const res = await fetch(`${API_URL}/api/v1/investigations/active`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
@@ -78,7 +78,7 @@ export default function ProjectListScreen({
     setJoiningId(id);
     try {
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/investigations/${id}/subscribe`, {
+      const res = await fetch(`${API_URL}/api/v1/investigations/${id}/subscribe`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

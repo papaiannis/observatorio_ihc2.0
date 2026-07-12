@@ -21,7 +21,7 @@ import { WebView } from 'react-native-webview';
 import { authStore as auth } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
 // ── Paleta Ajustada al Diseño ─────────────────────────
 const C = {

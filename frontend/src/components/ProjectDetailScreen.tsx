@@ -15,7 +15,7 @@ import { authStore } from '../utils/authStore';
 import type { Investigation } from './ProjectListScreen';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -63,7 +63,7 @@ export default function ProjectDetailScreen({
     const fetchDetail = async () => {
       try {
         const { token } = await authStore.getSession();
-        const res = await fetch(`${API_URL}/investigations/${project.id}`, {
+        const res = await fetch(`${API_URL}/api/v1/investigations/${project.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -81,7 +81,7 @@ export default function ProjectDetailScreen({
     setJoining(true);
     try {
       const { token } = await authStore.getSession();
-      const res = await fetch(`${API_URL}/investigations/${project.id}/subscribe`, {
+      const res = await fetch(`${API_URL}/api/v1/investigations/${project.id}/subscribe`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
