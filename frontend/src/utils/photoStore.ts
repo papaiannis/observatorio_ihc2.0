@@ -3,6 +3,8 @@
  * Almacenamiento persistente de fotos tomadas por el usuario.
  * Usa AsyncStorage en nativo y localStorage en web.
  */
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = 'observatorio_photos';
 
@@ -11,35 +13,40 @@ export interface StoredPhoto {
   timestamp: number;
 }
 
-const getAll = (): StoredPhoto[] => {
+async function readAll(): Promise<StoredPhoto[]> {
   try {
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      return raw ? JSON.parse(raw) : [];
-    }
-  } catch {}
-  return [];
-};
+    const raw = Platform.OS === 'web'
+      ? localStorage.getItem(KEY)
+      : await AsyncStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
-const save = (photos: StoredPhoto[]) => {
+async function writeAll(photos: StoredPhoto[]): Promise<void> {
   try {
-    if (typeof localStorage !== 'undefined') {
+    if (Platform.OS === 'web') {
       localStorage.setItem(KEY, JSON.stringify(photos));
+    } else {
+      await AsyncStorage.setItem(KEY, JSON.stringify(photos));
     }
   } catch {}
-};
+}
 
-const addPhoto = (uri: string): StoredPhoto[] => {
-  const existing = getAll();
+const getAll = (): Promise<StoredPhoto[]> => readAll();
+
+const addPhoto = async (uri: string): Promise<StoredPhoto[]> => {
+  const existing = await readAll();
   const updated = [{ uri, timestamp: Date.now() }, ...existing];
-  save(updated);
+  await writeAll(updated);
   return updated;
 };
 
-const removePhoto = (uri: string): StoredPhoto[] => {
-  const existing = getAll();
+const removePhoto = async (uri: string): Promise<StoredPhoto[]> => {
+  const existing = await readAll();
   const updated = existing.filter((p) => p.uri !== uri);
-  save(updated);
+  await writeAll(updated);
   return updated;
 };
 

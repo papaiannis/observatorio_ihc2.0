@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { photoStore, StoredPhoto } from '../utils/photoStore';
 import SightingFormScreen from './SightingFormScreen';
 
@@ -62,7 +63,7 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
 
   // Cargar fotos guardadas al montar el componente
   useEffect(() => {
-    setPhotos(photoStore.getAll());
+    photoStore.getAll().then(setPhotos);
   }, []);
 
   // Abrir galería automáticamente si lo pide el perfil
@@ -79,12 +80,34 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
       triggerShutter(); // feedback inmediato
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
       if (photo?.uri) {
-        const updated = photoStore.addPhoto(photo.uri);
+        const updated = await photoStore.addPhoto(photo.uri);
         setPhotos(updated);
       }
     } catch (e) {
       Alert.alert('Error', 'No se pudo tomar la foto. Intenta de nuevo.');
     }
+  }, []);
+
+  // Importar una o varias fotos desde la galería del teléfono
+  const handleImport = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para importar fotos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    let updated: StoredPhoto[] = [];
+    for (const asset of result.assets) {
+      updated = await photoStore.addPhoto(asset.uri);
+    }
+    setPhotos(updated);
+    setViewMode('gallery');
   }, []);
 
   const handleDeletePhoto = (uri: string) => {
@@ -93,8 +116,8 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
       {
         text: 'Eliminar',
         style: 'destructive',
-        onPress: () => {
-          const updated = photoStore.removePhoto(uri);
+        onPress: async () => {
+          const updated = await photoStore.removePhoto(uri);
           setPhotos(updated);
         },
       },
@@ -161,9 +184,9 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
         photoUri={selectedPhoto.uri}
         photoTimestamp={selectedPhoto.timestamp}
         onBack={() => setViewMode('gallery')}
-        onPublished={() => {
+        onPublished={async () => {
           // Eliminar la foto de la galería local tras publicar
-          const updated = photoStore.removePhoto(selectedPhoto.uri);
+          const updated = await photoStore.removePhoto(selectedPhoto.uri);
           setPhotos(updated);
           setSelectedPhoto(null);
           setViewMode('camera');
@@ -269,8 +292,16 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
           <View style={styles.captureInner} />
         </TouchableOpacity>
 
-        {/* Espaciado simétrico */}
-        <View style={styles.thumbnailWrapper} />
+        {/* Importar foto desde la galería del teléfono */}
+        <TouchableOpacity
+          style={styles.thumbnailWrapper}
+          activeOpacity={0.8}
+          onPress={handleImport}
+        >
+          <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
+            <Ionicons name="images" size={24} color={C.white} />
+          </View>
+        </TouchableOpacity>
       </View>
     </View>
   );
