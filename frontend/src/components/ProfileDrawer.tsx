@@ -137,7 +137,7 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
   // ── Navegar a sub-vistas ────────────────────────────────
   const goTo = (v: DrawerView) => {
     if (v === 'sightings') loadSightings();
-    if (v === 'drafts') setDrafts(photoStore.getAll());
+    if (v === 'drafts') photoStore.getAll().then(setDrafts);
     if (v === 'edit') setEditBio(userBio);
     if (v === 'projects') loadProjects();
     setView(v);
@@ -214,8 +214,8 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar', style: 'destructive',
-        onPress: () => {
-          const updated = photoStore.removePhoto(uri);
+        onPress: async () => {
+          const updated = await photoStore.removePhoto(uri);
           setDrafts(updated);
         },
       },
