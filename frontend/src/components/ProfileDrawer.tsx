@@ -289,6 +289,16 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
             <Ionicons name="arrow-back" size={22} color={C.earth} />
           </TouchableOpacity>
           <Text style={styles.subTitle}>Mis Proyectos</Text>
+          {userRole.toLowerCase() === 'especialista' && (
+            <TouchableOpacity
+              onPress={() => setView('create_project')}
+              style={styles.createProjectBtn}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={18} color="#FFFFFF" />
+              <Text style={styles.createProjectBtnText}>Crear</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {loadingProjects ? (
@@ -297,7 +307,22 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
           </View>
         ) : projects.length === 0 && createdProjects.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={styles.emptyText}>No participas ni has creado ningún proyecto aún</Text>
+            {userRole.toLowerCase() === 'especialista' ? (
+              <>
+                <Ionicons name="flask-outline" size={48} color={C.lightText} style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyText}>Aún no has creado ningún proyecto</Text>
+                <TouchableOpacity
+                  style={styles.emptyCreateBtn}
+                  onPress={() => setView('create_project')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="#7B5EA7" />
+                  <Text style={styles.emptyCreateBtnText}>Crear mi primer proyecto</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.emptyText}>No participas en ningún proyecto aún</Text>
+            )}
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
@@ -1109,5 +1134,35 @@ const styles = StyleSheet.create({
     color: C.lightText,
     letterSpacing: 1,
     marginBottom: 10,
+  },
+  createProjectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#7B5EA7',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  createProjectBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  emptyCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#7B5EA7',
+  },
+  emptyCreateBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: '#7B5EA7',
   },
 });
