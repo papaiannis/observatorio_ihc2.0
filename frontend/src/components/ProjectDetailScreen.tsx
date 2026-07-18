@@ -21,14 +21,11 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com
 const C = {
   bg: '#F6F6F6',
   cardBg: '#FFFFFF',
-  forest: '#1E2A21',
-  earth: '#4A3F35',
+  white: '#FFFFFF',
+  border: '#E8E8E8',
   sage: '#9EB36D',
   sageBg: 'rgba(158,179,109,0.12)',
-  white: '#FFFFFF',
-  gray: '#A09D9A',
-  border: '#E8E8E8',
-  lightText: 'rgba(74,63,53,0.5)',
+  textColor: '#473C33', // Color de tipografía solicitado
 };
 
 interface ProjectDetailScreenProps {
@@ -53,6 +50,7 @@ export default function ProjectDetailScreen({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [liked, setLiked] = useState(false);
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [surveysExpanded, setSurveysExpanded] = useState(false);
 
   const daysActive = Math.max(
     0,
@@ -139,14 +137,13 @@ export default function ProjectDetailScreen({
     return (
       <View style={styles.root}>
         <TouchableOpacity onPress={onBack} style={styles.backOnlyBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color={C.earth} />
+          <Ionicons name="arrow-back" size={24} color={C.textColor} />
         </TouchableOpacity>
         <ProjectDetailSkeleton />
       </View>
     );
   }
 
-  // Si no hay foto de contribución ni cover_url, mostramos un placeholder bonito
   const mainImageUri = selectedImage || 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=600&auto=format&fit=crop';
 
   return (
@@ -163,11 +160,11 @@ export default function ProjectDetailScreen({
 
           {/* Botones de acción superiores */}
           <TouchableOpacity onPress={onBack} style={styles.topRoundBtnLeft} activeOpacity={0.85}>
-            <Ionicons name="chevron-back" size={22} color={C.earth} />
+            <Ionicons name="chevron-back" size={22} color={C.textColor} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.topRoundBtnRight} activeOpacity={0.85}>
-            <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#E57373" : C.earth} />
+            <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#E57373" : C.textColor} />
           </TouchableOpacity>
 
           {/* Información superpuesta abajo en el Card */}
@@ -203,10 +200,9 @@ export default function ProjectDetailScreen({
                   </TouchableOpacity>
                 ))
               ) : (
-                // Si no hay avistamientos, mostramos unos placeholders bonitos
                 [1, 2, 3].map((num) => (
                   <View key={num} style={[styles.thumbBtn, styles.thumbPlaceholder]}>
-                    <Ionicons name="image-outline" size={16} color={C.gray} />
+                    <Ionicons name="image-outline" size={16} color={C.textColor} opacity={0.5} />
                   </View>
                 ))
               )}
@@ -214,20 +210,10 @@ export default function ProjectDetailScreen({
           </View>
         </View>
 
-        {/* ── MÉTRICAS: Distance, Temp, Rating ── */}
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Días Activo</Text>
-            <Text style={styles.metricValue}>{daysActive}d</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Días Restantes</Text>
-            <Text style={styles.metricValue}>{daysLeft}d</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Encuestas</Text>
-            <Text style={styles.metricValue}>{questions.length}</Text>
-          </View>
+        {/* ── MÉTRICAS: Solo días activo en el centro sin card ── */}
+        <View style={styles.centeredMetricRow}>
+          <Text style={styles.singleMetricValue}>{daysActive}d</Text>
+          <Text style={styles.singleMetricLabel}>Días Activo</Text>
         </View>
 
         {/* ── DESCRIPCIÓN ── */}
@@ -236,7 +222,7 @@ export default function ProjectDetailScreen({
           <Text style={styles.bodyText}>{detail.description}</Text>
         </View>
 
-        {/* ── PERÍODO (Encima de encuestas) ── */}
+        {/* ── PERÍODO ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Período de Investigación</Text>
           <View style={styles.datesRow}>
@@ -249,7 +235,7 @@ export default function ProjectDetailScreen({
               </Text>
             </View>
             <View style={styles.datePill}>
-              <Ionicons name="stop-outline" size={14} color={C.earth} />
+              <Ionicons name="stop-outline" size={14} color={C.textColor} />
               <Text style={styles.dateText}>
                 Cierre: {new Date(detail.end_date).toLocaleDateString('es-VE', {
                   day: '2-digit', month: 'short', year: 'numeric',
@@ -259,48 +245,65 @@ export default function ProjectDetailScreen({
           </View>
         </View>
 
-        {/* ── ENCUESTAS ── */}
+        {/* ── ENCUESTAS EXPANDIBLES ── */}
         {questions.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Encuestas <Text style={styles.sectionCount}>({questions.length})</Text>
-            </Text>
-            {questions.map((q: any, idx: number) => (
-              <View key={idx} style={styles.questionCard}>
-                <Text style={styles.questionText}>
-                  {idx + 1}. {typeof q === 'string' ? q : (q.question ?? q.text ?? JSON.stringify(q))}
-                </Text>
-                {Array.isArray(q.options) && q.options.length > 0 ? (
-                  <View style={styles.optionsWrap}>
-                    {q.options.map((opt: string, oi: number) => (
-                      <TouchableOpacity
-                        key={oi}
-                        style={[styles.optionBtn, answers[idx] === opt && styles.optionBtnSelected]}
-                        activeOpacity={0.75}
-                        onPress={() => setAnswers((prev) => ({ ...prev, [idx]: opt }))}
-                      >
-                        <Text style={[styles.optionText, answers[idx] === opt && styles.optionTextSelected]}>
-                          {opt}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <View style={styles.freeAnswerBox}>
-                    <Text style={styles.freeAnswerPlaceholder}>
-                      {answers[idx] ?? 'Respuesta libre...'}
-                    </Text>
-                  </View>
-                )}
+            <TouchableOpacity
+              style={styles.expandableHeader}
+              onPress={() => setSurveysExpanded(!surveysExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Encuestas</Text>
+              <View style={styles.expandableHeaderRight}>
+                <Text style={styles.sectionCount}>({questions.length})</Text>
+                <Ionicons
+                  name={surveysExpanded ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={C.textColor}
+                />
               </View>
-            ))}
+            </TouchableOpacity>
+
+            {surveysExpanded && (
+              <View style={styles.expandedContent}>
+                {questions.map((q: any, idx: number) => (
+                  <View key={idx} style={styles.questionCard}>
+                    <Text style={styles.questionText}>
+                      {idx + 1}. {typeof q === 'string' ? q : (q.question ?? q.text ?? JSON.stringify(q))}
+                    </Text>
+                    {Array.isArray(q.options) && q.options.length > 0 ? (
+                      <View style={styles.optionsWrap}>
+                        {q.options.map((opt: string, oi: number) => (
+                          <TouchableOpacity
+                            key={oi}
+                            style={[styles.optionBtn, answers[idx] === opt && styles.optionBtnSelected]}
+                            activeOpacity={0.75}
+                            onPress={() => setAnswers((prev) => ({ ...prev, [idx]: opt }))}
+                          >
+                            <Text style={[styles.optionText, answers[idx] === opt && styles.optionTextSelected]}>
+                              {opt}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.freeAnswerBox}>
+                        <Text style={styles.freeAnswerPlaceholder}>
+                          {answers[idx] ?? 'Respuesta libre...'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* ── BARRA DE ACCIÓN INFERIOR ── */}
+      {/* ── BARRA DE ACCIÓN INFERIOR (FLOTANDO POR ENCIMA DEL FOOTER) ── */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomBarLeft}>
           <Text style={styles.bottomBarLabel}>Miembros</Text>
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '50%',
-    backgroundColor: 'rgba(0,0,0,0.5)', // Degradado oscuro inferior para legibilidad del título
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
 
   // Botones flotantes arriba
@@ -397,7 +400,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     left: 20,
-    right: 120, // Espacio para que no choque con la barra lateral
+    right: 120,
     gap: 6,
     zIndex: 5,
   },
@@ -466,49 +469,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.8)',
   },
 
-  // ── Métricas ──
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: C.cardBg,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingVertical: 16,
+  // ── Métrica Centrada (Sin Card) ──
+  centeredMetricRow: {
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    marginVertical: 10,
+    gap: 2,
   },
-  metricLabel: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
-    color: C.gray,
-    textTransform: 'capitalize',
-  },
-  metricValue: {
+  singleMetricValue: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 18,
-    color: '#3A9E6D', // Valor coloreado como en el mock
+    fontSize: 32,
+    color: C.textColor, // Usar color unificado
+  },
+  singleMetricLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: C.textColor,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
 
   // ── Secciones de Texto ──
   section: { gap: 10 },
   sectionTitle: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 15,
-    color: C.forest,
+    fontSize: 16,
+    color: C.textColor,
   },
   sectionCount: {
-    fontFamily: 'Poppins_400Regular',
-    color: C.gray,
-    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
+    color: C.textColor,
+    fontSize: 15,
   },
   bodyText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
-    color: C.earth,
+    color: C.textColor,
     lineHeight: 22,
   },
 
@@ -532,10 +528,27 @@ const styles = StyleSheet.create({
   dateText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 12,
-    color: C.earth,
+    color: C.textColor,
   },
 
-  // ── Encuestas ──
+  // ── Encuestas Expandibles ──
+  expandableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  expandableHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  expandedContent: {
+    marginTop: 16,
+    gap: 16,
+  },
   questionCard: {
     backgroundColor: C.cardBg,
     borderRadius: 18,
@@ -547,7 +560,7 @@ const styles = StyleSheet.create({
   questionText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 14,
-    color: C.earth,
+    color: C.textColor,
     lineHeight: 20,
   },
   optionsWrap: { gap: 8 },
@@ -566,11 +579,11 @@ const styles = StyleSheet.create({
   optionText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: C.earth,
+    color: C.textColor,
   },
   optionTextSelected: {
     fontFamily: 'Poppins_600SemiBold',
-    color: C.forest,
+    color: C.textColor,
   },
   freeAnswerBox: {
     borderBottomWidth: 1,
@@ -580,11 +593,12 @@ const styles = StyleSheet.create({
   freeAnswerPlaceholder: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: C.gray,
+    color: C.textColor,
+    opacity: 0.5,
     fontStyle: 'italic',
   },
 
-  // ── Barra de Acción Inferior ──
+  // ── Barra de Acción Inferior (Fija sobre el Footer) ──
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -601,21 +615,22 @@ const styles = StyleSheet.create({
   bottomBarLabel: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 11,
-    color: C.gray,
+    color: C.textColor,
+    opacity: 0.6,
   },
   bottomBarValue: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 18,
-    color: C.earth,
+    color: C.textColor,
   },
   bottomRoundBtn: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: C.earth, // Botón marrón como el botón Entrar
+    backgroundColor: C.textColor, // Color del botón marrón solicitado (#473C33)
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: C.earth,
+    shadowColor: C.textColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
