@@ -10,13 +10,12 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
 import type { Investigation } from './ProjectListScreen';
 import { ProjectDetailSkeleton } from './Skeleton';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
 const C = {
@@ -29,23 +28,15 @@ const C = {
   white: '#FFFFFF',
   gray: '#A09D9A',
   border: '#E8E8E8',
-  lightText: 'rgba(74,63,53,0.55)',
+  lightText: 'rgba(74,63,53,0.5)',
 };
-
-// Colores para las tarjetas de contribución
-const CONTRIBUTION_CARDS = [
-  { color: '#9EB36D', icon: 'binoculars' },
-  { color: '#A9C26D', icon: 'leaf' },
-  { color: '#7E9B56', icon: 'eye' },
-  { color: '#C5D99A', icon: 'camera' },
-  { color: '#9EB36D', icon: 'paw' },
-];
 
 interface ProjectDetailScreenProps {
   project: Investigation;
   onBack: () => void;
   isSubscribed: boolean;
   onSubscribedChange: (id: string, joined: boolean) => void;
+  isGuest?: boolean;
 }
 
 export default function ProjectDetailScreen({
@@ -53,14 +44,15 @@ export default function ProjectDetailScreen({
   onBack,
   isSubscribed,
   onSubscribedChange,
+  isGuest = false,
 }: ProjectDetailScreenProps) {
-  const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<Investigation>(project);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [contributions, setContributions] = useState<any[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [liked, setLiked] = useState(false);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
 
   const daysActive = Math.max(
     0,
@@ -76,32 +68,52 @@ export default function ProjectDetailScreen({
     const fetchDetailAndContributions = async () => {
       try {
         const { token } = await authStore.getSession();
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
+        
         // 1. Obtener detalles del proyecto
-        const resDetail = await fetch(`${API_URL}/api/v1/investigations/${project.id}`, { headers });
-        if (resDetail.ok) {
-          const data = await resDetail.json();
+        const res = await fetch(`${API_URL}/api/v1/investigations/${project.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
           setDetail(data);
         }
 
-        // 2. Obtener contribuciones (avistamientos hechos)
-        const resCont = await fetch(`${API_URL}/api/v1/investigations/${project.id}/contributions`, { headers });
-        if (resCont.ok) {
-          const data = await resCont.json();
-          const list = data.contributions || [];
+        // 2. Obtener contribuciones (avistamientos) del proyecto
+        const contribRes = await fetch(`${API_URL}/api/v1/investigations/${project.id}/contributions`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (contribRes.ok) {
+          const contribData = await contribRes.json();
+          const list = contribData.contributions || [];
           setContributions(list);
-          if (list.length > 0) {
+          
+          // Establecer la imagen seleccionada por defecto
+          if (list.length > 0 && list[0].photo_url) {
             setSelectedImage(list[0].photo_url);
+          } else if (project.cover_url) {
+            setSelectedImage(project.cover_url);
           }
         }
-      } catch {}
-      setLoading(false);
+      } catch (err) {
+        console.warn('Error al cargar detalles o contribuciones del proyecto:', err);
+      } finally {
+        setLoading(false);
+      }
     };
+    
     fetchDetailAndContributions();
-  }, [project.id]);
+  }, [project.id, project.cover_url]);
 
   const handleJoin = async () => {
+    if (isGuest) {
+      Alert.alert(
+        'Inicia sesión',
+        'Crea una cuenta gratuita para unirte a investigaciones científicas.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+    
     setJoining(true);
     try {
       const { token } = await authStore.getSession();
@@ -111,7 +123,7 @@ export default function ProjectDetailScreen({
       });
       if (res.ok) {
         onSubscribedChange(project.id, true);
-        Alert.alert('¡Unido!', `Ahora participas en "${detail.title}".`);
+        Alert.alert('¡Unido!', `Ahora formas parte del proyecto "${detail.title}".`);
       } else {
         const err = await res.json().catch(() => ({}));
         Alert.alert('Error', err.message ?? 'No se pudo unir al proyecto.');
@@ -123,151 +135,123 @@ export default function ProjectDetailScreen({
     }
   };
 
-  const getSelectedImage = () => {
-    if (selectedImage) return selectedImage;
-    if (detail.cover_url) return detail.cover_url;
-    return 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800'; // Placeholder bosque
-  };
-
   if (loading) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backOverlayBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={C.earth} />
+      <View style={styles.root}>
+        <TouchableOpacity onPress={onBack} style={styles.backOnlyBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={24} color={C.earth} />
         </TouchableOpacity>
         <ProjectDetailSkeleton />
       </View>
     );
   }
 
+  // Si no hay foto de contribución ni cover_url, mostramos un placeholder bonito
+  const mainImageUri = selectedImage || 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=600&auto=format&fit=crop';
+
   return (
     <View style={styles.root}>
-      {/* ── CONTENEDOR DE LA IMAGEN PRINCIPAL (ESTILO MOCKUP BUDA) ── */}
-      <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: getSelectedImage() }}
-          style={styles.mainImage}
-          resizeMode="cover"
-        />
-
-        {/* Degradado oscuro en la base para hacer legibles los textos */}
-        <View style={styles.bottomScrim} />
-
-        {/* Botón flotante de regreso (atrás) */}
-        <TouchableOpacity onPress={onBack} style={styles.backOverlayBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={C.earth} />
-        </TouchableOpacity>
-
-        {/* Botón de favorito/opciones */}
-        <TouchableOpacity style={styles.favoriteOverlayBtn} activeOpacity={0.7}>
-          <Ionicons name="heart-outline" size={22} color={C.earth} />
-        </TouchableOpacity>
-
-        {/* Textos superpuestos en la imagen */}
-        <View style={styles.titleOverlay}>
-          <Text style={styles.overlayTitle} numberOfLines={2}>{detail.title}</Text>
-          {detail.methods && (
-            <View style={styles.locationRow}>
-              <Ionicons name="location" size={14} color={C.white} style={{ marginRight: 4 }} />
-              <Text style={styles.overlaySubtitle} numberOfLines={1}>{detail.methods}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Mazo de avistamientos lateral derecho (scroll vertical flotante) */}
-        {contributions.length > 0 && (
-          <View style={styles.thumbnailListContainer}>
-            <ScrollView
-              style={styles.thumbnailScroll}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.thumbnailScrollContent}
-            >
-              {contributions.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.thumbnailWrapper,
-                    selectedImage === item.photo_url && styles.thumbnailActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedImage(item.photo_url)}
-                >
-                  <Image source={{ uri: item.photo_url }} style={styles.thumbnailImg} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* ── SCROLL DE CONTENIDO ── */}
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── Botón Unirme grande (Estilo Entrar) ── */}
-        {!isSubscribed ? (
-          <TouchableOpacity
-            style={styles.joinBtnLarge}
-            activeOpacity={0.85}
-            onPress={handleJoin}
-            disabled={joining}
-          >
-            {joining ? (
-              <ActivityIndicator color={C.white} />
-            ) : (
-              <Text style={styles.joinBtnLargeText}>Unirme al proyecto</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.joinedBar}>
-            <Ionicons name="checkmark-circle" size={22} color={C.sage} />
-            <Text style={styles.joinedBarText}>Ya formas parte de este proyecto</Text>
-          </View>
-        )}
+        {/* ── SECCIÓN SUPERIOR: CARD DE IMAGEN ESTILO VIAJES ── */}
+        <View style={styles.imageCardContainer}>
+          <Image source={{ uri: mainImageUri }} style={styles.mainImage} />
+          <View style={styles.imageGradientOverlay} />
 
-        {/* ── Métricas rápidas ── */}
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricVal}>{daysActive}d</Text>
-            <Text style={styles.metricLbl}>Activo</Text>
+          {/* Botones de acción superiores */}
+          <TouchableOpacity onPress={onBack} style={styles.topRoundBtnLeft} activeOpacity={0.85}>
+            <Ionicons name="chevron-back" size={22} color={C.earth} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.topRoundBtnRight} activeOpacity={0.85}>
+            <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#E57373" : C.earth} />
+          </TouchableOpacity>
+
+          {/* Información superpuesta abajo en el Card */}
+          <View style={styles.cardInfoWrap}>
+            <Text style={styles.cardTitle} numberOfLines={2}>{detail.title}</Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location-sharp" size={14} color={C.white} />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {detail.methods ? detail.methods.substring(0, 35) : 'Reserva Nacional, Venezuela'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricVal}>{daysLeft}d</Text>
-            <Text style={styles.metricLbl}>Restantes</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricVal}>{questions.length}</Text>
-            <Text style={styles.metricLbl}>Encuestas</Text>
+
+          {/* Lateral derecho: Mazo vertical de fotos de avistamientos (Scrollable) */}
+          <View style={styles.sidebarWrapper}>
+            <ScrollView
+              style={styles.sidebarScroll}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sidebarContent}
+            >
+              {contributions.length > 0 ? (
+                contributions.map((c, idx) => (
+                  <TouchableOpacity
+                    key={c.id || idx}
+                    onPress={() => setSelectedImage(c.photo_url)}
+                    style={[
+                      styles.thumbBtn,
+                      selectedImage === c.photo_url && styles.thumbBtnActive
+                    ]}
+                    activeOpacity={0.85}
+                  >
+                    <Image source={{ uri: c.photo_url }} style={styles.thumbImage} />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                // Si no hay avistamientos, mostramos unos placeholders bonitos
+                [1, 2, 3].map((num) => (
+                  <View key={num} style={[styles.thumbBtn, styles.thumbPlaceholder]}>
+                    <Ionicons name="image-outline" size={16} color={C.gray} />
+                  </View>
+                ))
+              )}
+            </ScrollView>
           </View>
         </View>
 
-        {/* ── Metas ── */}
-        {detail.methods && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Metas</Text>
-            <Text style={styles.bodyText}>{detail.methods}</Text>
+        {/* ── MÉTRICAS: Distance, Temp, Rating ── */}
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Días Activo</Text>
+            <Text style={styles.metricValue}>{daysActive}d</Text>
           </View>
-        )}
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Días Restantes</Text>
+            <Text style={styles.metricValue}>{daysLeft}d</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Encuestas</Text>
+            <Text style={styles.metricValue}>{questions.length}</Text>
+          </View>
+        </View>
 
-        {/* ── Período ── */}
+        {/* ── DESCRIPCIÓN ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Período</Text>
+          <Text style={styles.sectionTitle}>Descripción</Text>
+          <Text style={styles.bodyText}>{detail.description}</Text>
+        </View>
+
+        {/* ── PERÍODO (Encima de encuestas) ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Período de Investigación</Text>
           <View style={styles.datesRow}>
             <View style={styles.datePill}>
               <Ionicons name="play-outline" size={14} color={C.sage} />
               <Text style={styles.dateText}>
-                {new Date(detail.start_date).toLocaleDateString('es-VE', {
+                Inicio: {new Date(detail.start_date).toLocaleDateString('es-VE', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </Text>
             </View>
-            <Ionicons name="arrow-forward" size={14} color={C.lightText} />
             <View style={styles.datePill}>
               <Ionicons name="stop-outline" size={14} color={C.earth} />
               <Text style={styles.dateText}>
-                {new Date(detail.end_date).toLocaleDateString('es-VE', {
+                Cierre: {new Date(detail.end_date).toLocaleDateString('es-VE', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </Text>
@@ -275,33 +259,7 @@ export default function ProjectDetailScreen({
           </View>
         </View>
 
-        {/* ── Contribuciones (Mazo horizontal abajo de Período) ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contribuciones</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.contributionsScroll}
-          >
-            {isSubscribed ? (
-              CONTRIBUTION_CARDS.map((card, i) => (
-                <View key={i} style={[styles.contributionCard, { backgroundColor: card.color }]}>
-                  <MaterialCommunityIcons name={card.icon as any} size={28} color={C.white} />
-                  <Text style={styles.contributionCardText}>Aporte {i + 1}</Text>
-                </View>
-              ))
-            ) : (
-              CONTRIBUTION_CARDS.map((card, i) => (
-                <View key={i} style={[styles.contributionCard, styles.contributionCardLocked, { borderColor: card.color }]}>
-                  <Ionicons name="lock-closed-outline" size={22} color={C.gray} />
-                  <Text style={styles.contributionCardLockedText}>Únete</Text>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </View>
-
-        {/* ── Encuestas ── */}
+        {/* ── ENCUESTAS ── */}
         {questions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
@@ -339,34 +297,35 @@ export default function ProjectDetailScreen({
           </View>
         )}
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* ── FOOTER FIJO (ESTILO MOCKUP BUDA) ── */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.footerLeft}>
-          <Text style={styles.footerLabel}>Período</Text>
-          <Text style={styles.footerVal}>
-            {new Date(detail.start_date).toLocaleDateString('es-VE', { month: 'short', year: 'numeric' })} - {new Date(detail.end_date).toLocaleDateString('es-VE', { month: 'short', year: 'numeric' })}
+      {/* ── BARRA DE ACCIÓN INFERIOR ── */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomBarLeft}>
+          <Text style={styles.bottomBarLabel}>Miembros</Text>
+          <Text style={styles.bottomBarValue}>
+            {isSubscribed ? 'Miembro Activo' : 'No Unido'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.circularJoinBtn}
-          activeOpacity={0.85}
-          onPress={isSubscribed ? undefined : handleJoin}
-          disabled={joining}
-        >
-          {joining ? (
+        {joining ? (
+          <View style={styles.bottomRoundBtn}>
             <ActivityIndicator color={C.white} size="small" />
-          ) : (
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.bottomRoundBtn}
+            onPress={handleJoin}
+            activeOpacity={0.85}
+          >
             <Ionicons
-              name={isSubscribed ? 'checkmark' : 'add'}
-              size={28}
+              name={isSubscribed ? "checkmark-sharp" : "add-sharp"}
+              size={26}
               color={C.white}
             />
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -374,32 +333,43 @@ export default function ProjectDetailScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
+  backOnlyBtn: { padding: 16 },
 
-  // ── Contenedor Imagen Principal ──
-  imageContainer: {
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+    gap: 24,
+  },
+
+  // ── Card de Imagen Superior (Estilo Viaje) ──
+  imageCardContainer: {
     width: '100%',
-    height: height * 0.42, // Alrededor del 42% del alto de la pantalla
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
+    height: 380,
+    borderRadius: 36,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: C.forest,
+    backgroundColor: '#E0E0E0',
   },
   mainImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
-  bottomScrim: {
+  imageGradientOverlay: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    bottom: 0,
+    height: '50%',
+    backgroundColor: 'rgba(0,0,0,0.5)', // Degradado oscuro inferior para legibilidad del título
   },
-  backOverlayBtn: {
+
+  // Botones flotantes arriba
+  topRoundBtnLeft: {
     position: 'absolute',
-    top: 24,
+    top: 20,
     left: 20,
     width: 42,
     height: 42,
@@ -407,11 +377,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.75)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
+    zIndex: 10,
   },
-  favoriteOverlayBtn: {
+  topRoundBtnRight: {
     position: 'absolute',
-    top: 24,
+    top: 20,
     right: 20,
     width: 42,
     height: 42,
@@ -419,114 +389,84 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.75)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
+    zIndex: 10,
   },
-  titleOverlay: {
+
+  // Info superpuesta abajo en el Card
+  cardInfoWrap: {
     position: 'absolute',
     bottom: 24,
-    left: 24,
-    right: 110, // Margen para no chocar con las miniaturas
-    gap: 4,
+    left: 20,
+    right: 120, // Espacio para que no choque con la barra lateral
+    gap: 6,
+    zIndex: 5,
   },
-  overlayTitle: {
+  cardTitle: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 22,
+    fontSize: 20,
     color: C.white,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    lineHeight: 26,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  overlaySubtitle: {
-    fontFamily: 'Poppins_500Medium',
+  locationText: {
+    fontFamily: 'Poppins_400Regular',
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.85)',
   },
 
-  // Miniaturas del lateral derecho (Scroll vertical)
-  thumbnailListContainer: {
+  // Sidebar lateral de miniaturas
+  sidebarWrapper: {
     position: 'absolute',
     right: 16,
     top: 80,
     bottom: 20,
-    width: 70,
-    zIndex: 25,
+    width: 60,
+    zIndex: 10,
   },
-  thumbnailScroll: {
+  sidebarScroll: {
     flex: 1,
   },
-  thumbnailScrollContent: {
+  sidebarContent: {
+    alignItems: 'center',
     gap: 12,
-    paddingBottom: 20,
+    paddingVertical: 10,
   },
-  thumbnailWrapper: {
-    width: 60,
-    height: 60,
+  thumbBtn: {
+    width: 50,
+    height: 50,
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'transparent',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.4)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
   },
-  thumbnailActive: {
-    borderColor: '#FFFFFF',
-  },
-  thumbnailImg: {
-    width: '100%',
-    height: '100%',
-  },
-
-  // ── Scroll Content ──
-  scroll: { flex: 1 },
-  scrollContent: {
-    padding: 20,
-    gap: 24,
-  },
-
-  // Botón Unirme Grande (Estilo login btnEntrar)
-  joinBtnLarge: {
-    width: '100%',
-    backgroundColor: C.earth,
-    borderRadius: 18,
-    paddingVertical: 24,
-    alignItems: 'center',
-    shadowColor: C.earth,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  joinBtnLargeText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 18,
-    color: C.white,
-  },
-  joinedBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: C.cardBg,
-    borderRadius: 18,
-    paddingVertical: 20,
-    borderWidth: 1.5,
+  thumbBtnActive: {
     borderColor: C.sage,
   },
-  joinedBarText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 14,
-    color: C.sage,
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  thumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
 
-  // Métricas
+  // ── Métricas ──
   metricsRow: {
     flexDirection: 'row',
     gap: 12,
@@ -534,29 +474,27 @@ const styles = StyleSheet.create({
   metricCard: {
     flex: 1,
     backgroundColor: C.cardBg,
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 16,
     alignItems: 'center',
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    gap: 6,
   },
-  metricVal: {
+  metricLabel: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11,
+    color: C.gray,
+    textTransform: 'capitalize',
+  },
+  metricValue: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 18,
-    color: C.forest,
-  },
-  metricLbl: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
-    color: C.gray,
+    color: '#3A9E6D', // Valor coloreado como en el mock
   },
 
-  // Secciones
-  section: { gap: 12 },
+  // ── Secciones de Texto ──
+  section: { gap: 10 },
   sectionTitle: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
@@ -574,72 +512,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // Período
+  // ── Fechas ──
   datesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   datePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: C.cardBg,
-    borderRadius: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   dateText: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Poppins_500Medium',
     fontSize: 12,
     color: C.earth,
   },
 
-  // Contribuciones (Horizontal)
-  contributionsScroll: {
-    paddingRight: 8,
-    gap: 12,
-    flexDirection: 'row',
-  },
-  contributionCard: {
-    width: 110,
-    height: 130,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  contributionCardText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: C.white,
-  },
-  contributionCardLocked: {
-    backgroundColor: C.cardBg,
-    borderWidth: 1.5,
-  },
-  contributionCardLockedText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
-    color: C.gray,
-  },
-
-  // Encuestas
+  // ── Encuestas ──
   questionCard: {
     backgroundColor: C.cardBg,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   questionText: {
     fontFamily: 'Poppins_500Medium',
@@ -652,7 +555,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: C.border,
     borderRadius: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 14,
     backgroundColor: C.bg,
   },
@@ -681,35 +584,35 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Footer fijo (Estilo mockup)
-  footer: {
+  // ── Barra de Acción Inferior ──
+  bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 14,
-    backgroundColor: C.white,
+    paddingVertical: 16,
+    backgroundColor: C.cardBg,
     borderTopWidth: 1,
     borderTopColor: C.border,
   },
-  footerLeft: {
-    gap: 2,
+  bottomBarLeft: {
+    gap: 4,
   },
-  footerLabel: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+  bottomBarLabel: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11,
     color: C.gray,
   },
-  footerVal: {
+  bottomBarValue: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 15,
+    fontSize: 18,
     color: C.earth,
   },
-  circularJoinBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: C.earth,
+  bottomRoundBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: C.earth, // Botón marrón como el botón Entrar
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: C.earth,
