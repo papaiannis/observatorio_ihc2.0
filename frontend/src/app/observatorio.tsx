@@ -141,7 +141,8 @@ export default function ObservatorioScreen() {
     } else if (target === 'tracking' && data) {
       setTrackingSighting(data as TrackingSighting);
     } else if (target === 'project' && data) {
-      setSelectedProject(data);
+      // Esperar a que termine la animación del drawer (220ms) antes de mostrar el detalle
+      setTimeout(() => setSelectedProject(data), 240);
     }
   };
 
@@ -236,12 +237,19 @@ export default function ObservatorioScreen() {
           onAddPress={() => setActiveTab('crear')}
         />
 
-        {/* ── CONTENIDO CON TRANSCICIÓN DE HOJA HORIZONTAL ── */}
+        {/* ── CONTENIDO CON TRANSICIÓN DE HOJA HORIZONTAL ── */}
         <View style={styles.mainContent} pointerEvents={drawerOpen ? 'none' : 'auto'}>
           {trackingSighting ? (
             <SightingTrackingScreen
               sighting={trackingSighting}
               onBack={() => setTrackingSighting(null)}
+            />
+          ) : selectedProject ? (
+            <ProjectDetailScreen
+              project={selectedProject}
+              onBack={() => setSelectedProject(null)}
+              isSubscribed={true}
+              onSubscribedChange={() => {}}
             />
           ) : (
             <ScrollView
@@ -253,7 +261,7 @@ export default function ObservatorioScreen() {
               contentContainerStyle={{ width: width * 4 }}
             >
               <View style={{ width }}><ObservatorioTab onSightingPress={setSelectedSighting} /></View>
-              <View style={{ width }}><DocumentosTab /></View>
+              <View style={{ width }}><DocumentosTab onProjectPress={setSelectedProject} /></View>
               <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} /></View>
               <View style={{ width }}><ConfiguracionTab /></View>
             </ScrollView>
@@ -292,15 +300,7 @@ export default function ObservatorioScreen() {
         />
       )}
 
-      {/* ── CAPA 5: DETALLE DE PROYECTO (MODAL SHEET DESDE EL PERFIL) ── */}
-      {selectedProject && (
-        <ProjectDetailScreen
-          project={selectedProject}
-          onBack={() => setSelectedProject(null)}
-          isSubscribed={true}
-          onSubscribedChange={() => {}}
-        />
-      )}
+
     </View>
   );
 }
@@ -349,5 +349,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: C.scrim,
     zIndex: 999,
+  },
+
+  // Overlay de pantalla completa para pantallas de detalle
+  overlayFull: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20000,
+    backgroundColor: '#F6F6F6',
   },
 });

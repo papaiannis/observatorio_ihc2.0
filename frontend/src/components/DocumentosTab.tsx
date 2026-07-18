@@ -53,7 +53,7 @@ interface Investigation {
   subscriber_count?: number;
 }
 
-export default function DocumentosTab() {
+export default function DocumentosTab({ onProjectPress }: { onProjectPress?: (project: Investigation) => void }) {
   const insets = useSafeAreaInsets();
   const [projects, setProjects] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,68 +102,73 @@ export default function DocumentosTab() {
     const contributors: Contributor[] = item.contributors ?? [];
 
     return (
-      <Animated.View
+      <TouchableOpacity
         key={item.id}
-        style={[styles.card, { transform: [{ scale }] }]}
+        activeOpacity={0.9}
+        onPress={() => onProjectPress?.(item)}
       >
-        {/* Imagen de fondo */}
-        {item.cover_url ? (
-          <Image source={{ uri: item.cover_url }} style={styles.cardImage} resizeMode="cover" />
-        ) : (
-          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-            <Ionicons name="leaf-outline" size={48} color={C.sage} />
-          </View>
-        )}
-
-        {/* Gradiente inferior oscuro para legibilidad */}
-        <View style={styles.cardOverlay} />
-
-        {/* Contenido superpuesto en la tarjeta */}
-        <View style={styles.cardContent}>
-          {/* Estado del proyecto */}
-          <View style={styles.statusPill}>
-            <View style={[styles.statusDot, item.status === 'active' ? styles.dotActive : styles.dotInactive]} />
-            <Text style={styles.statusText}>
-              {item.status === 'active' ? 'Activo' : item.status === 'archived' ? 'Archivado' : 'Inactivo'}
-            </Text>
-          </View>
-
-          {/* Nombre del proyecto */}
-          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-
-          {/* Avatares de contribuyentes */}
-          {contributors.length > 0 && (
-            <View style={styles.contributorsRow}>
-              {contributors.slice(0, 4).map((c, i) => (
-                <View key={i} style={[styles.contributorAvatar, { marginLeft: i > 0 ? -10 : 0 }]}>
-                  {c.avatar_url ? (
-                    <Image source={{ uri: c.avatar_url }} style={styles.avatarImg} />
-                  ) : (
-                    <View style={styles.avatarFallback}>
-                      <Text style={styles.avatarInitial}>
-                        {c.username.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              {contributors.length > 4 && (
-                <View style={[styles.contributorAvatar, styles.avatarMore, { marginLeft: -10 }]}>
-                  <Text style={styles.avatarMoreText}>+{contributors.length - 4}</Text>
-                </View>
-              )}
-              <Text style={styles.contributorsLabel}>
-                {contributors.length === 1 ? '1 contribuyente' : `${contributors.length} contribuyentes`}
-              </Text>
+        <Animated.View
+          style={[styles.card, { transform: [{ scale }] }]}
+        >
+          {/* Imagen de fondo */}
+          {item.cover_url ? (
+            <Image source={{ uri: item.cover_url }} style={styles.cardImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+              <Ionicons name="leaf-outline" size={48} color={C.sage} />
             </View>
           )}
-        </View>
 
-        {/* Botón Explorar centrado */}
-        <TouchableOpacity style={styles.exploreBtn} activeOpacity={0.85}>
-          <Text style={styles.exploreBtnText}>Explorar</Text>
-        </TouchableOpacity>
-      </Animated.View>
+          {/* Gradiente inferior oscuro para legibilidad */}
+          <View style={styles.cardOverlay} />
+
+          {/* Contenido superpuesto en la tarjeta */}
+          <View style={styles.cardContent}>
+            {/* Estado del proyecto */}
+            <View style={styles.statusPill}>
+              <View style={[styles.statusDot, item.status === 'active' ? styles.dotActive : styles.dotInactive]} />
+              <Text style={styles.statusText}>
+                {item.status === 'active' ? 'Activo' : item.status === 'archived' ? 'Archivado' : 'Inactivo'}
+              </Text>
+            </View>
+
+            {/* Nombre del proyecto */}
+            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+
+            {/* Avatares de contribuyentes */}
+            {contributors.length > 0 && (
+              <View style={styles.contributorsRow}>
+                {contributors.slice(0, 4).map((c, i) => (
+                  <View key={i} style={[styles.contributorAvatar, { marginLeft: i > 0 ? -10 : 0 }]}>
+                    {c.avatar_url ? (
+                      <Image source={{ uri: c.avatar_url }} style={styles.avatarImg} />
+                    ) : (
+                      <View style={styles.avatarFallback}>
+                        <Text style={styles.avatarInitial}>
+                          {c.username.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {contributors.length > 4 && (
+                  <View style={[styles.contributorAvatar, styles.avatarMore, { marginLeft: -10 }]}>
+                    <Text style={styles.avatarMoreText}>+{contributors.length - 4}</Text>
+                  </View>
+                )}
+                <Text style={styles.contributorsLabel}>
+                  {contributors.length === 1 ? '1 contribuyente' : `${contributors.length} contribuyentes`}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Botón Explorar */}
+          <View style={styles.exploreBtn}>
+            <Text style={styles.exploreBtnText}>Explorar →</Text>
+          </View>
+        </Animated.View>
+      </TouchableOpacity>
     );
   };
 
