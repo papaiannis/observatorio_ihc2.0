@@ -93,8 +93,8 @@ export default function DocumentosTab({
       // La API puede devolver array directo o { investigations: [] }
       const list: Investigation[] = Array.isArray(data) ? data : (data.investigations ?? []);
       setProjects(list);
-    } catch {
-      // fallo silencioso — el estado vacío lo maneja la UI
+    } catch (err) {
+      console.warn('Error fetching active projects:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
