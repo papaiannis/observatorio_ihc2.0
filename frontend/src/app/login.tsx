@@ -32,10 +32,34 @@ const C = {
   sage: '#A9C26D',
 };
 
+const translateError = (msg: string): string => {
+  const lower = msg.toLowerCase();
+  if (lower.includes('invalid login credentials') || lower.includes('invalid credentials')) {
+    return 'La contraseña no es válida.';
+  }
+  if (lower.includes('user not found') || lower.includes('user_not_found') || lower.includes('not found') || lower.includes('no existe')) {
+    return 'El usuario no existe.';
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'El correo electrónico aún no ha sido verificado.';
+  }
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('connection')) {
+    return 'Error de conexión. Por favor, verifica tu red.';
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return 'Demasiados intentos de inicio de sesión. Inténtalo más tarde.';
+  }
+  return 'Ocurrió un error. Por favor, inténtalo de nuevo.';
+};
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -44,10 +68,18 @@ export default function LoginScreen() {
   });
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Por favor ingresa tu usuario y contraseña.');
+    setEmailError(null);
+    setPasswordError(null);
+
+    if (!email) {
+      setEmailError('Por favor ingresa tu usuario.');
       return;
     }
+    if (!password) {
+      setPasswordError('Por favor ingresa tu contraseña.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/v1/auth/login`, {
@@ -56,11 +88,28 @@ export default function LoginScreen() {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Error al iniciar sesión');
+      
+      if (!response.ok || !data.success) {
+        const errMsg = data.error || 'Error al iniciar sesión';
+        const lowerMsg = errMsg.toLowerCase();
+
+        if (
+          lowerMsg.includes('user not found') ||
+          lowerMsg.includes('user_not_found') ||
+          lowerMsg.includes('no existe') ||
+          lowerMsg.includes('not found')
+        ) {
+          setEmailError('El usuario no existe.');
+        } else {
+          setPasswordError(translateError(errMsg));
+        }
+        return;
+      }
+
       await authStore.setSession(data.token, data.user);
       router.replace('/observatorio');
     } catch (error: any) {
-      Alert.alert('Error de Autenticación', error.message);
+      setPasswordError(translateError(error.message));
     } finally {
       setIsLoading(false);
     }
@@ -103,26 +152,47 @@ export default function LoginScreen() {
                 placeholder="Usuario"
                 placeholderTextColor={C.gray}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(val) => {
+                  setEmail(val);
+                  setEmailError(null);
+                }}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 selectionColor={C.sage}
               />
-              <View style={styles.inputLine} />
+              <View style={[styles.inputLine, emailError ? styles.inputLineError : null]} />
+              {emailError && <Text style={styles.errorText}>{emailError}</Text>}
             </View>
 
             {/* Contraseña */}
             <View style={styles.inputGroup}>
-              <TextInput
-                style={styles.input}
-                placeholder="Contrasena"
-                placeholderTextColor={C.gray}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={true}
-                selectionColor={C.sage}
-              />
-              <View style={styles.inputLine} />
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Contraseña"
+                  placeholderTextColor={C.gray}
+                  value={password}
+                  onChangeText={(val) => {
+                    setPassword(val);
+                    setPasswordError(null);
+                  }}
+                  secureTextEntry={!showPassword}
+                  selectionColor={C.sage}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={C.gray}
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.inputLine, passwordError ? styles.inputLineError : null]} />
+              {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
 
               {/* No recuerdo la contraseña */}
               <TouchableOpacity style={styles.forgotWrapper} activeOpacity={0.7}>
@@ -226,6 +296,23 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.gray,
     marginTop: 2,
+  },
+  inputLineError: {
+    backgroundColor: '#EF5350', // Línea roja al haber error
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eyeBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  errorText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: '#EF5350', // Texto rojo para el error
+    marginTop: 6,
   },
   forgotWrapper: {
     alignSelf: 'flex-end',

@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
+import { ProjectListSkeleton } from './Skeleton';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
@@ -160,9 +161,7 @@ export default function ProjectListScreen({
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={C.sage} />
-        </View>
+        <ProjectListSkeleton />
       ) : (
         <FlatList
           data={projects}

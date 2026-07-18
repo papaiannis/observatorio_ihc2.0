@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
+import { ComunidadSkeleton, DOME_CARD_WIDTH, DOME_CARD_HEIGHT } from './Skeleton';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
@@ -159,61 +160,80 @@ export default function ComunidadTab() {
     const dateStr = new Date(item.observed_at).toLocaleDateString('es-VE', {
       day: '2-digit', month: 'short', year: 'numeric',
     });
+    const domeRadius = DOME_CARD_WIDTH / 2;
 
     return (
-      <View style={styles.card}>
-        <Image source={{ uri: item.photo_url }} style={styles.cardImage} resizeMode="cover" />
+      <View
+        style={[
+          styles.card,
+          {
+            width: DOME_CARD_WIDTH,
+            height: DOME_CARD_HEIGHT,
+            borderTopLeftRadius: domeRadius,
+            borderTopRightRadius: domeRadius,
+          },
+        ]}
+      >
+        {item.photo_url ? (
+          <Image
+            source={{ uri: item.photo_url }}
+            style={[
+              styles.cardImage,
+              { borderTopLeftRadius: domeRadius, borderTopRightRadius: domeRadius },
+            ]}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.cardImage,
+              { borderTopLeftRadius: domeRadius, borderTopRightRadius: domeRadius },
+            ]}
+          />
+        )}
 
-        <View style={styles.cardBody}>
-          {/* Especie / título */}
-          <View style={styles.cardTopRow}>
-            <Text style={styles.cardSpecies} numberOfLines={1}>
-              {item.species?.common_name
-                || item.species?.scientific_name
-                || item.preliminary_species
-                || 'Especie desconocida'}
-            </Text>
-            {/* Badge de estado */}
-            <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-              <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-            </View>
+        {/* Floating badge for Edited Metadata */}
+        {item.metadata_edited && (
+          <View style={styles.editedBadgeFloating}>
+            <Text style={styles.editedBadgeTextFloating}>Editado</Text>
           </View>
+        )}
 
-          {/* Fecha y usuario */}
-          <Text style={styles.cardMeta}>
-            {dateStr}
-            {item.profiles?.username ? `  ·  @${item.profiles.username}` : ''}
+        {/* Floating actions for own sighting */}
+        {isOwn && (
+          <View style={styles.cardActionsFloating}>
+            <TouchableOpacity
+              style={styles.actionBtnFloating}
+              activeOpacity={0.7}
+              onPress={() => handleHide(item.id)}
+            >
+              <Ionicons name="eye-off-outline" size={14} color={C.white} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtnFloating, styles.actionBtnDangerFloating]}
+              activeOpacity={0.7}
+              onPress={() => handleDelete(item.id)}
+            >
+              <Ionicons name="trash-outline" size={14} color={C.white} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Text overlay for contrast and readability */}
+        <View style={styles.textContainer}>
+          <Text style={styles.cardSpecies} numberOfLines={1}>
+            {item.species?.common_name
+              || item.species?.scientific_name
+              || item.preliminary_species
+              || 'Especie desconocida'}
           </Text>
-
-          {/* Metadatos editados */}
-          {item.metadata_edited && (
-            <View style={styles.editedBadge}>
-              <Text style={styles.editedBadgeText}>Metadatos editados</Text>
-            </View>
-          )}
-
-          {/* Acciones (solo para avistamientos propios) */}
-          {isOwn && (
-            <View style={styles.cardActions}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                activeOpacity={0.7}
-                onPress={() => handleHide(item.id)}
-              >
-                <Ionicons name="eye-off-outline" size={16} color={C.gray} />
-                <Text style={styles.actionBtnText}>Ocultar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnDanger]}
-                activeOpacity={0.7}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash-outline" size={16} color={C.red} />
-                <Text style={[styles.actionBtnText, { color: C.red }]}>Eliminar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {dateStr}{item.profiles?.username ? ` · @${item.profiles.username}` : ''}
+          </Text>
         </View>
+
+        {/* Status dot in the middle bottom border */}
+        <View style={[styles.statusDot, { backgroundColor: status.color }]} />
       </View>
     );
   };
@@ -266,14 +286,14 @@ export default function ComunidadTab() {
 
       {/* Lista */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={C.sage} />
-        </View>
+        <ComunidadSkeleton />
       ) : (
         <FlatList
           data={filteredSightings}
           keyExtractor={(item) => item.id}
           renderItem={renderSightingCard}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.sage} />}
@@ -378,7 +398,11 @@ const styles = StyleSheet.create({
   },
 
   // ── Lista ──────────────────────────────────────────────
-  listContent: { paddingHorizontal: 16, paddingBottom: 120 },
+  // ── Lista ──────────────────────────────────────────────
+  listContent: { paddingHorizontal: 16, paddingBottom: 140, gap: 12 },
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -389,85 +413,91 @@ const styles = StyleSheet.create({
   // ── Tarjeta de avistamiento ────────────────────────────
   card: {
     backgroundColor: C.white,
-    borderRadius: 16,
-    marginBottom: 14,
-    overflow: 'hidden',
+    borderRadius: 20,
+    position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 3,
+    marginBottom: 8,
   },
   cardImage: {
     width: '100%',
-    height: 180,
+    height: '100%',
     backgroundColor: C.border,
   },
-  cardBody: {
-    padding: 14,
-    gap: 6,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
+  textContainer: {
+    position: 'absolute',
+    bottom: 18,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 2,
+    zIndex: 5,
   },
   cardSpecies: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 15,
-    color: C.forest,
-    flex: 1,
-  },
-  statusBadge: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  statusText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
+    fontSize: 12,
+    color: C.white,
+    textAlign: 'center',
   },
   cardMeta: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: C.gray,
+    fontSize: 9,
+    color: '#E0E0E0',
+    textAlign: 'center',
   },
-  editedBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF0F0',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#E57373',
-  },
-  editedBadgeText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
-    color: '#E57373',
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  statusDot: {
+    position: 'absolute',
+    bottom: -12,
+    alignSelf: 'center',
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    backgroundColor: C.bg,
+    borderWidth: 3,
+    borderColor: '#F6F6F6',
+    zIndex: 10,
   },
-  actionBtnDanger: {
-    backgroundColor: C.redBg,
+  cardActionsFloating: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    gap: 6,
+    zIndex: 15,
   },
-  actionBtnText: {
+  actionBtnFloating: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 15,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBtnDangerFloating: {
+    backgroundColor: 'rgba(239, 83, 80, 0.95)',
+  },
+  editedBadgeFloating: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 235, 238, 0.95)',
+    borderColor: '#EF5350',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    zIndex: 15,
+  },
+  editedBadgeTextFloating: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: C.gray,
+    fontSize: 8,
+    color: '#EF5350',
   },
 
   // ── Estado vacío ────────────────────────────────────────

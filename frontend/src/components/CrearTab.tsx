@@ -49,17 +49,15 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
   const [selectedPhoto, setSelectedPhoto] = useState<StoredPhoto | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const shutterAnim = useRef(new Animated.Value(0)).current;
 
-  // Animación de obturador (flash blanco breve)
-  const triggerShutter = () => {
-    shutterAnim.setValue(1);
-    Animated.timing(shutterAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
+  // Animaciones
+  const shutterAnim = useRef(new Animated.Value(0)).current;
+  const galleryAnim = useRef(new Animated.Value(width)).current;
+  const formAnim = useRef(new Animated.Value(width)).current;
+
+  // Estados de montaje para mantener transiciones visuales limpias
+  const [isGalleryVisible, setIsGalleryVisible] = useState(false);
+  const [isFormVisible, setIsFormVisible] = useState(false);
 
   // Cargar fotos guardadas al montar el componente
   useEffect(() => {
@@ -73,6 +71,55 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
       onGalleryOpened?.();
     }
   }, [openGallery]);
+
+  // Manejar animaciones de transición según el modo de vista
+  useEffect(() => {
+    if (viewMode === 'camera') {
+      Animated.timing(galleryAnim, {
+        toValue: width,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setIsGalleryVisible(false));
+
+      Animated.timing(formAnim, {
+        toValue: width,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setIsFormVisible(false));
+    } else if (viewMode === 'gallery') {
+      setIsGalleryVisible(true);
+      Animated.spring(galleryAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+
+      Animated.timing(formAnim, {
+        toValue: width,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setIsFormVisible(false));
+    } else if (viewMode === 'form') {
+      setIsFormVisible(true);
+      Animated.spring(formAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [viewMode]);
+
+  // Animación de obturador (flash blanco breve)
+  const triggerShutter = () => {
+    shutterAnim.setValue(1);
+    Animated.timing(shutterAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const handleCapture = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -127,8 +174,8 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
   const toggleFlash = () => setFlash((f) => (f === 'off' ? 'on' : 'off'));
   const toggleFacing = () => setFacing((f) => (f === 'back' ? 'front' : 'back'));
 
-  // ── Vista de Galería "Por subir" ──────────────────────────
-  if (viewMode === 'gallery') {
+  // ── Renderizado: Vista de Galería "Por subir" ────────────────
+  const renderGalleryView = () => {
     return (
       <SafeAreaView style={styles.galleryContainer}>
         <View style={styles.galleryHeaderRow}>
@@ -175,10 +222,11 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
         )}
       </SafeAreaView>
     );
-  }
+  };
 
-  // ── Vista de Formulario ─────────────────────────────────
-  if (viewMode === 'form' && selectedPhoto) {
+  // ── Renderizado: Vista de Formulario ─────────────────────────
+  const renderFormView = () => {
+    if (!selectedPhoto) return null;
     return (
       <SightingFormScreen
         photoUri={selectedPhoto.uri}
@@ -193,11 +241,11 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
         }}
       />
     );
-  }
+  };
 
-  // ── Vista de Cámara ───────────────────────────────────────
+  // ── Renderizado: Permisos de Cámara ──────────────────────────
   if (!permission) {
-    return <View style={styles.cameraContainer} />;
+    return <View style={styles.mainContainer} />;
   }
 
   if (!permission.granted) {
@@ -221,93 +269,127 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
   const lastPhoto = photos[0];
 
   return (
-    <View style={styles.cameraContainer}>
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
-        facing={facing}
-        flash={flash}
-      />
+    <View style={styles.mainContainer}>
+      {/* ── CAPA 1: CÁMARA (BASE) ── */}
+      <View style={styles.cameraContainer}>
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFillObject}
+          facing={facing}
+          flash={flash}
+        />
 
-      {/* ── Flash de obturador: feedback visual al tomar foto ── */}
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: '#fff', opacity: shutterAnim, zIndex: 20, pointerEvents: 'none' },
-        ]}
-      />
+        {/* Flash de obturador */}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: '#fff', opacity: shutterAnim, zIndex: 20, pointerEvents: 'none' },
+          ]}
+        />
 
-      {/* ── Barra superior: controles dentro del visor ── */}
-      <View style={styles.cameraTopBar}>
-        <View style={styles.topBarColLeft}>
-          <TouchableOpacity onPress={onClose} style={styles.camCtrlBtn} activeOpacity={0.8}>
-            <Ionicons name="close" size={28} color={C.white} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.topBarCol}>
-          <TouchableOpacity onPress={toggleFlash} style={styles.camCtrlBtn} activeOpacity={0.8}>
-            <Ionicons
-              name={flash === 'on' ? 'flash' : 'flash-off'}
-              size={26}
-              color={C.white}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.topBarColRight}>
-          <TouchableOpacity onPress={toggleFacing} style={styles.camCtrlBtn} activeOpacity={0.8}>
-            <MaterialIcons name="flip-camera-ios" size={28} color={C.white} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Barra inferior: thumbnail + botón captura ── */}
-      <View style={styles.cameraBottomBar}>
-        {/* Thumbnail de la última foto tomada */}
-        <TouchableOpacity
-          style={styles.thumbnailWrapper}
-          activeOpacity={0.8}
-          onPress={() => setViewMode('gallery')}
-        >
-          {lastPhoto ? (
-            <Image
-              source={{ uri: lastPhoto.uri }}
-              style={styles.thumbnail}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
-              <Ionicons name="images-outline" size={20} color={C.gray} />
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Botón de captura */}
-        <TouchableOpacity
-          style={styles.captureOuter}
-          activeOpacity={0.85}
-          onPress={handleCapture}
-        >
-          <View style={styles.captureInner} />
-        </TouchableOpacity>
-
-        {/* Importar foto desde la galería del teléfono */}
-        <TouchableOpacity
-          style={styles.thumbnailWrapper}
-          activeOpacity={0.8}
-          onPress={handleImport}
-        >
-          <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
-            <Ionicons name="images" size={24} color={C.white} />
+        {/* Barra superior de cámara */}
+        <View style={styles.cameraTopBar}>
+          <View style={styles.topBarColLeft}>
+            <TouchableOpacity onPress={onClose} style={styles.camCtrlBtn} activeOpacity={0.8}>
+              <Ionicons name="close" size={28} color={C.white} />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+
+          <View style={styles.topBarCol}>
+            <TouchableOpacity onPress={toggleFlash} style={styles.camCtrlBtn} activeOpacity={0.8}>
+              <Ionicons
+                name={flash === 'on' ? 'flash' : 'flash-off'}
+                size={26}
+                color={C.white}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.topBarColRight}>
+            <TouchableOpacity onPress={toggleFacing} style={styles.camCtrlBtn} activeOpacity={0.8}>
+              <MaterialIcons name="flip-camera-ios" size={28} color={C.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Barra inferior de cámara */}
+        <View style={styles.cameraBottomBar}>
+          <TouchableOpacity
+            style={styles.thumbnailWrapper}
+            activeOpacity={0.8}
+            onPress={() => setViewMode('gallery')}
+          >
+            {lastPhoto ? (
+              <Image
+                source={{ uri: lastPhoto.uri }}
+                style={styles.thumbnail}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
+                <Ionicons name="images-outline" size={20} color={C.gray} />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.captureOuter}
+            activeOpacity={0.85}
+            onPress={handleCapture}
+          >
+            <View style={styles.captureInner} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.thumbnailWrapper}
+            activeOpacity={0.8}
+            onPress={handleImport}
+          >
+            <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
+              <Ionicons name="images" size={24} color={C.white} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* ── CAPA 2: GALERÍA (DESLIZA LATERALMENTE DESDE DERECHA) ── */}
+      {isGalleryVisible && (
+        <Animated.View
+          style={[
+            styles.animatedContainer,
+            { transform: [{ translateX: galleryAnim }] },
+          ]}
+        >
+          {renderGalleryView()}
+        </Animated.View>
+      )}
+
+      {/* ── CAPA 3: FORMULARIO (DESLIZA LATERALMENTE DESDE DERECHA) ── */}
+      {isFormVisible && (
+        <Animated.View
+          style={[
+            styles.animatedContainer,
+            { transform: [{ translateX: formAnim }] },
+          ]}
+        >
+          {renderFormView()}
+        </Animated.View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  animatedContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: C.bg,
+    zIndex: 100,
+  },
+
   // ── Cámara ─────────────────────────────────────────────
   cameraContainer: {
     flex: 1,
@@ -316,7 +398,7 @@ const styles = StyleSheet.create({
   },
   cameraTopBar: {
     position: 'absolute',
-    top: 48, // Ajustado para librar la muesca de los dispositivos iOS
+    top: 48,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -346,7 +428,7 @@ const styles = StyleSheet.create({
   },
   cameraBottomBar: {
     position: 'absolute',
-    bottom: 40, // Se baja a 40px porque ya no está la barra de footer estorbando
+    bottom: 40,
     left: 0,
     right: 0,
     flexDirection: 'row',

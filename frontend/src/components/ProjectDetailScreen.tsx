@@ -13,6 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
 import type { Investigation } from './ProjectListScreen';
+import { ProjectDetailSkeleton } from './Skeleton';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
@@ -105,8 +106,15 @@ export default function ProjectDetailScreen({
 
   if (loading) {
     return (
-      <View style={[styles.root, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={C.sage} />
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={C.earth} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Cargando proyecto...</Text>
+        </View>
+        <ProjectDetailSkeleton />
       </View>
     );
   }

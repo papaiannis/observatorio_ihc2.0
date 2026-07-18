@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
+import { ProyectosCarouselSkeleton } from './Skeleton';
 
 const { width } = Dimensions.get('window');
 
@@ -196,9 +197,7 @@ export default function DocumentosTab() {
 
       {/* ── Contenido ── */}
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={C.sage} />
-        </View>
+        <ProyectosCarouselSkeleton />
       ) : projects.length === 0 ? (
         // Estado vacío
         <View style={styles.centered} />

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,8 +6,10 @@ import {
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
+import { useLocalSearchParams } from 'expo-router';
 
 // Componentes Reutilizables de Estructura
 import Header from '../components/Header';
@@ -22,7 +24,7 @@ import ComunidadTab from '../components/ComunidadTab';
 import ConfiguracionTab from '../components/ConfiguracionTab';
 import SightingTrackingScreen, { TrackingSighting } from '../components/SightingTrackingScreen';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Pantalla principal se desplaza un 65% a la derecha al abrir el drawer
 const MAIN_TRANSLATE_X = width * 0.65;
@@ -39,20 +41,70 @@ const C = {
   scrim: 'rgba(0,0,0,0.4)',
 };
 
+const TAB_TO_INDEX: Record<string, number> = {
+  observatorio: 0,
+  documentos: 1,
+  comunidad: 2,
+  configuracion: 3,
+};
+
 export default function ObservatorioScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('observatorio');
+  const [prevTab, setPrevTab] = useState<TabType>('observatorio');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showDraftsOnCrear, setShowDraftsOnCrear] = useState(false);
   const [trackingSighting, setTrackingSighting] = useState<TrackingSighting | null>(null);
 
-  // Animación principal: controla todo con un único valor 0→1
-  const anim = useRef(new Animated.Value(0)).current;
+  const [cameraMounted, setCameraMounted] = useState(false);
+  const { openCamera } = useLocalSearchParams<{ openCamera?: string }>();
+
+  // Si viene del onboarding con la orden de subir avistamiento, abrimos la cámara
+  useEffect(() => {
+    if (openCamera === 'true') {
+      setActiveTab('crear');
+    }
+  }, [openCamera]);
+
+  // Animaciones
+  const anim = useRef(new Animated.Value(0)).current; // Drawer slide
+  const cameraAnim = useRef(new Animated.Value(height)).current; // Camera slide-up sheet
+
+  const scrollRef = useRef<ScrollView>(null);
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,
   });
+
+  // Manejar cambios de pestañas y animaciones correspondientes
+  useEffect(() => {
+    if (activeTab === 'crear') {
+      setCameraMounted(true);
+      Animated.spring(cameraAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Si la cámara estaba abierta, la bajamos
+      Animated.timing(cameraAnim, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setCameraMounted(false);
+      });
+
+      // Desplazamiento horizontal de pestaña tipo "hoja"
+      const index = TAB_TO_INDEX[activeTab];
+      if (index !== undefined) {
+        scrollRef.current?.scrollTo({ x: index * width, animated: true });
+        setPrevTab(activeTab);
+      }
+    }
+  }, [activeTab]);
 
   if (!fontsLoaded) return null;
 
@@ -113,28 +165,15 @@ export default function ObservatorioScreen() {
     outputRange: [0, 1],
   });
 
-  const renderTabContent = () => {
-    // Si hay un avistamiento seleccionado para tracking, lo mostramos
-    if (trackingSighting) {
-      return (
-        <SightingTrackingScreen
-          sighting={trackingSighting}
-          onBack={() => setTrackingSighting(null)}
-        />
-      );
-    }
-    switch (activeTab) {
-      case 'observatorio': return <ObservatorioTab />;
-      case 'documentos':   return <DocumentosTab />;
-      case 'crear':        return <CrearTab
-          onClose={() => setActiveTab('observatorio')}
-          openGallery={showDraftsOnCrear}
-          onGalleryOpened={() => setShowDraftsOnCrear(false)}
-        />;
-      case 'comunidad':    return <ComunidadTab />;
-      case 'configuracion': return <ConfiguracionTab />;
-      default:             return <ObservatorioTab />;
-    }
+  const handleCloseCamera = () => {
+    Animated.timing(cameraAnim, {
+      toValue: height,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setCameraMounted(false);
+      setActiveTab(prevTab);
+    });
   };
 
   return (
@@ -186,23 +225,57 @@ export default function ObservatorioScreen() {
         )}
 
         {/* ── HEADER ── */}
-        {activeTab !== 'crear' && (
-          <Header
-            onAvatarPress={drawerOpen ? closeDrawer : openDrawer}
-            onAddPress={() => setActiveTab('crear')}
-          />
-        )}
+        <Header
+          onAvatarPress={drawerOpen ? closeDrawer : openDrawer}
+          onAddPress={() => setActiveTab('crear')}
+        />
 
-        {/* ── CONTENIDO ── */}
+        {/* ── CONTENIDO CON TRANSCICIÓN DE HOJA HORIZONTAL ── */}
         <View style={styles.mainContent} pointerEvents={drawerOpen ? 'none' : 'auto'}>
-          {renderTabContent()}
+          {trackingSighting ? (
+            <SightingTrackingScreen
+              sighting={trackingSighting}
+              onBack={() => setTrackingSighting(null)}
+            />
+          ) : (
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              pagingEnabled
+              scrollEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ width: width * 4 }}
+            >
+              <View style={{ width }}><ObservatorioTab /></View>
+              <View style={{ width }}><DocumentosTab /></View>
+              <View style={{ width }}><ComunidadTab /></View>
+              <View style={{ width }}><ConfiguracionTab /></View>
+            </ScrollView>
+          )}
         </View>
 
         {/* ── FOOTER ── */}
-        {activeTab !== 'crear' && (
-          <Footer activeTab={activeTab} onTabPress={setActiveTab} />
-        )}
+        <Footer activeTab={activeTab === 'crear' ? prevTab : activeTab} onTabPress={setActiveTab} />
       </Animated.View>
+
+      {/* ── CAPA 3: HOJA FLUIDA DE LA CÁMARA (SLIDE-UP DESDE ABAJO) ── */}
+      {cameraMounted && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              transform: [{ translateY: cameraAnim }],
+              zIndex: 9999,
+            },
+          ]}
+        >
+          <CrearTab
+            onClose={handleCloseCamera}
+            openGallery={showDraftsOnCrear}
+            onGalleryOpened={() => setShowDraftsOnCrear(false)}
+          />
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -229,7 +302,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     zIndex: 10,
-    // Sin sombra extra — la elevación visual la da el scrim sobre la pantalla principal
   },
 
   // Pantalla principal
@@ -241,8 +313,6 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
 
-  // Sombra extra cuando la tarjeta está flotando — eliminada para que
-  // la sombra quede solo en el panel del drawer
   mainScreenElevated: {},
 
   mainContent: {

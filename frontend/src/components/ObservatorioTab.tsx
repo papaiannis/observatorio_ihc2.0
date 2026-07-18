@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
+import { ObservatorioSkeleton, DOME_CARD_WIDTH, DOME_CARD_HEIGHT } from './Skeleton';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
@@ -71,27 +72,55 @@ export default function ObservatorioTab() {
 
     const username = Array.isArray(item.profiles) ? item.profiles[0]?.username : item.profiles?.username;
     const speciesObj = Array.isArray(item.species) ? item.species[0] : item.species;
+    const domeRadius = DOME_CARD_WIDTH / 2;
 
     return (
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          {
+            width: DOME_CARD_WIDTH,
+            height: DOME_CARD_HEIGHT,
+            borderTopLeftRadius: domeRadius,
+            borderTopRightRadius: domeRadius,
+          },
+        ]}
+      >
         {item.photo_url ? (
-          <Image source={{ uri: item.photo_url }} style={styles.cardImage} resizeMode="cover" />
+          <Image
+            source={{ uri: item.photo_url }}
+            style={[
+              styles.cardImage,
+              { borderTopLeftRadius: domeRadius, borderTopRightRadius: domeRadius },
+            ]}
+            resizeMode="cover"
+          />
         ) : (
-          <View style={styles.cardImage} />
+          <View
+            style={[
+              styles.cardImage,
+              { borderTopLeftRadius: domeRadius, borderTopRightRadius: domeRadius },
+            ]}
+          />
         )}
-        <View style={styles.cardBody}>
+
+        {/* Text overlay for contrast and readability */}
+        <View style={styles.textContainer}>
           <Text style={styles.cardSpecies} numberOfLines={1}>
             {speciesObj?.common_name || speciesObj?.scientific_name || item.preliminary_species || 'Especie'}
           </Text>
-          <Text style={styles.cardMeta}>
-            {dateStr} {username ? ` · @${username}` : ''}
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {dateStr}{username ? ` · @${username}` : ''}
           </Text>
           {item.decimal_latitude && item.decimal_longitude && (
-            <Text style={styles.cardCoords}>
-              {item.decimal_latitude.toFixed(4)}, {item.decimal_longitude.toFixed(4)}
+            <Text style={styles.cardCoords} numberOfLines={1}>
+              {item.decimal_latitude.toFixed(3)}, {item.decimal_longitude.toFixed(3)}
             </Text>
           )}
         </View>
+
+        {/* Status dot in the middle bottom border */}
+        <View style={styles.statusDot} />
       </View>
     );
   };
@@ -103,14 +132,14 @@ export default function ObservatorioTab() {
       </View>
 
       {loading ? (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={C.sage} />
-        </View>
+        <ObservatorioSkeleton />
       ) : (
         <FlatList
           data={sightings}
           keyExtractor={(item) => item.id}
           renderItem={renderSightingCard}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.sage} />}
@@ -144,41 +173,68 @@ const styles = StyleSheet.create({
   },
 
   // ── Lista y Tarjetas ──────────────────────────────────
-  listContent: { paddingHorizontal: 16, paddingBottom: 120 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 140, gap: 12 },
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
   card: {
     backgroundColor: C.white,
-    borderRadius: 16,
-    marginBottom: 14,
-    overflow: 'hidden',
+    borderRadius: 20,
+    position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 3,
+    marginBottom: 8,
   },
   cardImage: {
     width: '100%',
-    height: 180,
+    height: '100%',
     backgroundColor: C.border,
   },
-  cardBody: {
-    padding: 14,
-    gap: 6,
+  textContainer: {
+    position: 'absolute',
+    bottom: 18,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 2,
+    zIndex: 5,
   },
   cardSpecies: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 15,
-    color: C.forest,
+    fontSize: 12,
+    color: C.white,
+    textAlign: 'center',
   },
   cardMeta: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: C.gray,
+    fontSize: 9,
+    color: '#E0E0E0',
+    textAlign: 'center',
   },
   cardCoords: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: 8,
     color: C.sage,
+    textAlign: 'center',
+  },
+  statusDot: {
+    position: 'absolute',
+    bottom: -12,
+    alignSelf: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: '#F6F6F6',
+    backgroundColor: '#9EB36D',
+    zIndex: 10,
   },
 
   // ── Estado vacío ─────────────────────────────────────────

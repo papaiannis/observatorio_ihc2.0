@@ -63,7 +63,7 @@ export default function RegistroScreen() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Error al registrarse');
       await authStore.setSession(data.token, data.user);
-      router.replace('/observatorio');
+      router.replace('/onboarding');
     } catch (error: any) {
       Alert.alert('Error de Registro', error.message);
     } finally {
