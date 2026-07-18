@@ -87,6 +87,24 @@ export default function SightingFormScreen({
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [publishing, setPublishing] = useState(false);
 
+  const [userRole, setUserRole] = useState('');
+  const [token, setToken] = useState<string | null>(null);
+  const [createProject, setCreateProject] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+
+  // Cargar rol de usuario
+  useEffect(() => {
+    const load = async () => {
+      const { user, token: t } = await auth.getSession();
+      if (user) {
+        if (user.role) setUserRole(user.role.toLowerCase());
+        setToken(t);
+      }
+    };
+    load();
+  }, []);
+
   // ── Obtener GPS automáticamente ───────────────────────────
   useEffect(() => {
     const fetchLocation = async () => {
@@ -124,16 +142,51 @@ export default function SightingFormScreen({
   // ── Lógica de Publicación ─────────────────────────────────
   const handlePublish = async () => {
     if (publishing) return;
+
+    if (createProject) {
+      if (!projectTitle.trim() || !projectDescription.trim()) {
+        Alert.alert('Campos requeridos', 'Por favor ingresa el nombre del proyecto y sus metas.');
+        return;
+      }
+    }
+
     setPublishing(true);
 
     try {
-      const { token } = await auth.getSession();
-      if (!token) {
+      const { token: activeToken } = await auth.getSession();
+      if (!activeToken) {
         Alert.alert('Sesión expirada', 'Por favor inicia sesión nuevamente.');
         setPublishing(false);
         return;
       }
 
+      // 1. Si se eligió crear proyecto, lo creamos primero
+      if (createProject) {
+        const today = new Date().toISOString().split('T')[0];
+        const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const resProj = await fetch(`${API_URL}/api/v1/investigations`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: projectTitle.trim(),
+            description: projectDescription.trim(),
+            start_date: today,
+            end_date: nextYear,
+            status: 'active',
+          }),
+        });
+
+        if (!resProj.ok) {
+          const err = await resProj.json().catch(() => ({}));
+          throw new Error(err.message || 'No se pudo crear el proyecto para este avistamiento.');
+        }
+      }
+
+      // 2. Continuar con la publicación normal del avistamiento
       const formData = new FormData();
       const fileName = photoUri.split('/').pop() ?? 'photo.jpg';
       const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -153,7 +206,7 @@ export default function SightingFormScreen({
 
       const res = await fetch(`${API_URL}/api/v1/sightings`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${activeToken}` },
         body: formData,
       });
 
@@ -162,7 +215,11 @@ export default function SightingFormScreen({
         throw new Error(err.message ?? `Error ${res.status}`);
       }
 
-      Alert.alert('¡Publicado!', 'Tu avistamiento fue enviado para revisión.', [
+      const successMsg = createProject 
+        ? 'El proyecto y tu avistamiento fueron creados exitosamente.'
+        : 'Tu avistamiento fue enviado para revisión.';
+
+      Alert.alert('¡Publicado!', successMsg, [
         { text: 'OK', onPress: onPublished },
       ]);
     } catch (e: any) {
@@ -348,6 +405,46 @@ export default function SightingFormScreen({
             </View>
             <Text style={styles.charCount}>{question.length}/130 caracteres</Text>
           </View>
+
+          {/* ── Sección de Proyecto (Solo Especialistas) ── */}
+          {userRole === 'especialista' && (
+            <View style={styles.projectSection}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                activeOpacity={0.7}
+                onPress={() => setCreateProject(!createProject)}
+              >
+                <Ionicons
+                  name={createProject ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={C.earth}
+                />
+                <Text style={styles.checkboxLabel}>Crear un nuevo proyecto para este avistamiento</Text>
+              </TouchableOpacity>
+
+              {createProject && (
+                <View style={styles.projectInputsWrapper}>
+                  <TextInput
+                    style={styles.projectInput}
+                    value={projectTitle}
+                    onChangeText={setProjectTitle}
+                    placeholder="Nombre del Proyecto"
+                    placeholderTextColor={C.gray}
+                    maxLength={100}
+                  />
+                  <TextInput
+                    style={[styles.projectInput, { minHeight: 70, textAlignVertical: 'top' }]}
+                    value={projectDescription}
+                    onChangeText={setProjectDescription}
+                    placeholder="Metas del Proyecto (Descripción)"
+                    placeholderTextColor={C.gray}
+                    multiline
+                    maxLength={300}
+                  />
+                </View>
+              )}
+            </View>
+          )}
 
           {/* ── Botón Publicar ── */}
           <TouchableOpacity
@@ -555,5 +652,42 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     fontSize: 20,
     color: C.white,
+  },
+
+  // Especialista: proyecto
+  projectSection: {
+    width: '100%',
+    backgroundColor: C.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkboxLabel: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+    color: C.earth,
+    flex: 1,
+  },
+  projectInputsWrapper: {
+    marginTop: 16,
+    gap: 12,
+  },
+  projectInput: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13.5,
+    color: C.earth,
+    backgroundColor: '#F7F7F7',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E2E2',
   },
 });

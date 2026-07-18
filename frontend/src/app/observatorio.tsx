@@ -23,6 +23,8 @@ import CrearTab from '../components/CrearTab';
 import ComunidadTab from '../components/ComunidadTab';
 import ConfiguracionTab from '../components/ConfiguracionTab';
 import SightingTrackingScreen, { TrackingSighting } from '../components/SightingTrackingScreen';
+import SightingDetailScreen from '../components/SightingDetailScreen';
+import ProjectDetailScreen from '../components/ProjectDetailScreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,6 +58,8 @@ export default function ObservatorioScreen() {
   const [trackingSighting, setTrackingSighting] = useState<TrackingSighting | null>(null);
 
   const [cameraMounted, setCameraMounted] = useState(false);
+  const [selectedSighting, setSelectedSighting] = useState<any | null>(null);
+  const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const { openCamera } = useLocalSearchParams<{ openCamera?: string }>();
 
   // Si viene del onboarding con la orden de subir avistamiento, abrimos la cámara
@@ -127,7 +131,7 @@ export default function ObservatorioScreen() {
     }).start(() => setDrawerOpen(false));
   };
 
-  const handleDrawerNavigate = (target: 'sightings' | 'drafts' | 'tracking', data?: any) => {
+  const handleDrawerNavigate = (target: 'sightings' | 'drafts' | 'tracking' | 'project', data?: any) => {
     closeDrawer();
     if (target === 'drafts') {
       setActiveTab('crear');
@@ -136,6 +140,8 @@ export default function ObservatorioScreen() {
       setActiveTab('comunidad');
     } else if (target === 'tracking' && data) {
       setTrackingSighting(data as TrackingSighting);
+    } else if (target === 'project' && data) {
+      setSelectedProject(data);
     }
   };
 
@@ -246,9 +252,9 @@ export default function ObservatorioScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ width: width * 4 }}
             >
-              <View style={{ width }}><ObservatorioTab /></View>
+              <View style={{ width }}><ObservatorioTab onSightingPress={setSelectedSighting} /></View>
               <View style={{ width }}><DocumentosTab /></View>
-              <View style={{ width }}><ComunidadTab /></View>
+              <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} /></View>
               <View style={{ width }}><ConfiguracionTab /></View>
             </ScrollView>
           )}
@@ -275,6 +281,25 @@ export default function ObservatorioScreen() {
             onGalleryOpened={() => setShowDraftsOnCrear(false)}
           />
         </Animated.View>
+      )}
+
+      {/* ── CAPA 4: HOJA FLUIDA DEL DETALLE DE AVISTAMIENTO (SLIDE-IN DESDE DERECHA) ── */}
+      {selectedSighting && (
+        <SightingDetailScreen
+          sightingId={selectedSighting.id}
+          initialSighting={selectedSighting}
+          onBack={() => setSelectedSighting(null)}
+        />
+      )}
+
+      {/* ── CAPA 5: DETALLE DE PROYECTO (MODAL SHEET DESDE EL PERFIL) ── */}
+      {selectedProject && (
+        <ProjectDetailScreen
+          project={selectedProject}
+          onBack={() => setSelectedProject(null)}
+          isSubscribed={true}
+          onSubscribedChange={() => {}}
+        />
       )}
     </View>
   );

@@ -63,7 +63,11 @@ const FILTER_STATUS: Record<FilterType, string | null> = {
   'En proyectos': null, // extensión futura
 };
 
-export default function ComunidadTab() {
+interface ComunidadTabProps {
+  onSightingPress?: (sighting: Sighting) => void;
+}
+
+export default function ComunidadTab({ onSightingPress }: ComunidadTabProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [tempFilters, setTempFilters] = useState<FilterType[]>(['Todas']);
   const [appliedFilters, setAppliedFilters] = useState<FilterType[]>(['Todas']);
@@ -163,7 +167,9 @@ export default function ComunidadTab() {
     const domeRadius = DOME_CARD_WIDTH / 2;
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => onSightingPress?.(item)}
         style={[
           styles.card,
           {
@@ -201,7 +207,7 @@ export default function ComunidadTab() {
 
         {/* Floating actions for own sighting */}
         {isOwn && (
-          <View style={styles.cardActionsFloating}>
+          <View style={styles.cardActionsFloating} pointerEvents="box-none">
             <TouchableOpacity
               style={styles.actionBtnFloating}
               activeOpacity={0.7}
@@ -234,7 +240,7 @@ export default function ComunidadTab() {
 
         {/* Status dot in the middle bottom border */}
         <View style={[styles.statusDot, { backgroundColor: status.color }]} />
-      </View>
+      </TouchableOpacity>
     );
   };
 

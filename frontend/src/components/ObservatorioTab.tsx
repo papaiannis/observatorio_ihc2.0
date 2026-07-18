@@ -28,7 +28,11 @@ interface Sighting {
   species?: { scientific_name: string; common_name?: string };
 }
 
-export default function ObservatorioTab() {
+interface ObservatorioTabProps {
+  onSightingPress?: (sighting: Sighting) => void;
+}
+
+export default function ObservatorioTab({ onSightingPress }: ObservatorioTabProps) {
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,7 +79,9 @@ export default function ObservatorioTab() {
     const domeRadius = DOME_CARD_WIDTH / 2;
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => onSightingPress?.(item)}
         style={[
           styles.card,
           {
@@ -121,7 +127,7 @@ export default function ObservatorioTab() {
 
         {/* Status dot in the middle bottom border */}
         <View style={styles.statusDot} />
-      </View>
+      </TouchableOpacity>
     );
   };
 
