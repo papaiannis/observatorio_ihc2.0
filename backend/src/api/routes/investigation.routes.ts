@@ -25,7 +25,7 @@ router.get('/my-subscriptions', authMiddleware, mySubscriptions);
 // Investigaciones base
 router.get('/active', optionalAuth, getActiveInvestigations);
 router.get('/:id', optionalAuth, getInvestigationById);
-router.get('/:id/contributions', authMiddleware, getInvestigationContributions);
+router.get('/:id/contributions', optionalAuth, getInvestigationContributions);
 
 // Actualizar y eliminar investigación (PATCH y DELETE /:id)
 router.patch('/:id', authMiddleware, updateInvestigation);

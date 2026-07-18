@@ -144,9 +144,9 @@ export class InvestigationService {
   /**
    * Obtiene las contribuciones de una investigación específica
    */
-  static async getContributionsByInvestigation(investigationId: string, userToken: string, filters?: { status?: string, limit?: number, offset?: number }) {
-    const authClient = createAuthenticatedClient(userToken);
-    let query = authClient
+  static async getContributionsByInvestigation(investigationId: string, userToken?: string, filters?: { status?: string, limit?: number, offset?: number }) {
+    const client = userToken ? createAuthenticatedClient(userToken) : supabase;
+    let query = client
       .from('investigation_contributions')
       .select(`
         *,
