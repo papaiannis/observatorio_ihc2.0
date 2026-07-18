@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
 import { ComunidadSkeleton, DOME_CARD_WIDTH, DOME_CARD_HEIGHT } from './Skeleton';
+import AppealSheet, { AppealTarget } from './AppealSheet';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
 
@@ -81,6 +82,7 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [appealTarget, setAppealTarget] = useState<Sighting | null>(null);
 
   const fetchSightings = useCallback(async () => {
     try {
@@ -167,23 +169,15 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
     action();
   };
 
-  /** Apelar una curaduría (solo Especialistas) */
-  const handleAppeal = async (item: Sighting) => {
-    try {
-      const { token } = await authStore.getSession();
-      if (!token) return;
-      await fetch(`${API_URL}/api/v1/sightings/${item.id}/appeal`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      });
-      // Actualiza el estado local optimistamente
-      setSightings((prev) =>
-        prev.map((s) => (s.id === item.id ? { ...s, status: 'in_review' } : s)),
-      );
-    } catch {
-      Alert.alert('Error', 'No se pudo apelar la curaduría.');
-    }
-  };
+  /** Convierte un avistamiento en el target que espera AppealSheet */
+  const toAppealTarget = (item: Sighting): AppealTarget => ({
+    id: item.id,
+    source: 'sighting',
+    photo_url: item.photo_url,
+    preliminary_species: item.species?.common_name || item.species?.scientific_name || item.preliminary_species,
+    observed_at: item.observed_at,
+    status: item.status,
+  });
 
   // Aplicar filtros
   const filteredSightings = sightings.filter((s) => {
@@ -267,7 +261,7 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
           <TouchableOpacity
             style={styles.appealBtn}
             activeOpacity={0.8}
-            onPress={() => handleAppeal(item)}
+            onPress={() => setAppealTarget(item)}
           >
             <Ionicons name="flag-outline" size={12} color={C.white} />
           </TouchableOpacity>
@@ -362,6 +356,15 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
           }
         />
       )}
+
+      <AppealSheet
+        visible={!!appealTarget}
+        item={appealTarget ? toAppealTarget(appealTarget) : null}
+        onClose={() => setAppealTarget(null)}
+        onSuccess={(id) => {
+          setSightings((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'in_review' } : s)));
+        }}
+      />
     </View>
   );
 }

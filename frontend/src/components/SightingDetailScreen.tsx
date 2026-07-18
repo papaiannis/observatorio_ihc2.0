@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
+import AppealSheet from './AppealSheet';
 
 const { width, height } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
@@ -38,6 +39,8 @@ const C = {
   redBg: '#FFEBEE',
   brown: '#8D6E63',
   brownBg: '#EFEBE9',
+  amber: '#E65100',
+  amberBg: '#FFF3E0',
 };
 
 interface Comment {
@@ -60,15 +63,18 @@ interface Sighting {
   decimal_longitude?: number;
   profiles?: { username: string; avatar_url?: string };
   species?: { scientific_name: string; common_name?: string };
+  user_id?: string;
 }
 
 interface SightingDetailScreenProps {
   sightingId: string;
   initialSighting?: Sighting;
   onBack: () => void;
+  /** rol del usuario autenticado: 'entusiasta' | 'especialista' | 'invitado' */
+  userRole?: string;
 }
 
-export default function SightingDetailScreen({ sightingId, initialSighting, onBack }: SightingDetailScreenProps) {
+export default function SightingDetailScreen({ sightingId, initialSighting, onBack, userRole }: SightingDetailScreenProps) {
   const insets = useSafeAreaInsets();
   const [sighting, setSighting] = useState<Sighting | null>(initialSighting || null);
   const [loading, setLoading] = useState(!initialSighting);
@@ -76,6 +82,8 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
   const [loadingComments, setLoadingComments] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [appealing, setAppealing] = useState(false);
 
   // Likes
   const [likeCount, setLikeCount] = useState(0);
@@ -99,7 +107,8 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { token } = await authStore.getSession();
+        const { token, user } = await authStore.getSession();
+        if (user?.id) setMyUserId(user.id);
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
         // 1. Obtener detalles del avistamiento si no se pasaron inicialmente
@@ -351,6 +360,18 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
                 </View>
               </View>
             )}
+
+            {/* Apelar curaduría (solo Especialistas, en avistamientos validados ajenos) */}
+            {userRole === 'especialista' && sighting.status === 'validated' && sighting.user_id !== myUserId && (
+              <TouchableOpacity
+                style={styles.appealBtn}
+                activeOpacity={0.8}
+                onPress={() => setAppealing(true)}
+              >
+                <Ionicons name="flag-outline" size={16} color={C.amber} />
+                <Text style={styles.appealBtnText}>Apelar Curaduría</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── COMENTARIOS Y PREGUNTAS ── */}
@@ -422,6 +443,22 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+
+      <AppealSheet
+        visible={appealing}
+        item={{
+          id: sighting.id,
+          source: 'sighting',
+          photo_url: sighting.photo_url,
+          preliminary_species: sighting.species?.common_name || sighting.species?.scientific_name || sighting.preliminary_species,
+          observed_at: sighting.observed_at,
+          status: sighting.status,
+        }}
+        onClose={() => setAppealing(false)}
+        onSuccess={() => {
+          setSighting((prev) => (prev ? { ...prev, status: 'in_review' } : prev));
+        }}
+      />
     </Animated.View>
   );
 }
@@ -593,6 +630,23 @@ const styles = StyleSheet.create({
   },
   boldText: {
     fontFamily: 'Poppins_600SemiBold',
+  },
+  appealBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: C.amberBg,
+    borderWidth: 1,
+    borderColor: C.amber,
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  appealBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: C.amber,
   },
 
   // Comentarios

@@ -331,6 +331,7 @@ export default function ObservatorioScreen() {
           sightingId={selectedSighting.id}
           initialSighting={selectedSighting}
           onBack={() => setSelectedSighting(null)}
+          userRole={userRole}
         />
       )}
 
