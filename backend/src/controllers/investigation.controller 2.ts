@@ -120,14 +120,15 @@ export const getInvestigationContributions = async (req: Request, res: Response,
       throw new AppError('No autorizado para ver estas contribuciones', 403);
     }
 
+    const queryParams: { status?: string; limit?: number; offset?: number } = {};
+    if (status) queryParams.status = status as string;
+    if (limit) queryParams.limit = parseInt(limit as string, 10);
+    if (offset) queryParams.offset = parseInt(offset as string, 10);
+
     const result = await InvestigationService.getContributionsByInvestigation(
       id as string,
       user.token,
-      {
-        status: status as string,
-        limit: limit ? parseInt(limit as string, 10) : undefined,
-        offset: offset ? parseInt(offset as string, 10) : undefined
-      }
+      queryParams
     );
     res.json(result);
   } catch (error) {
