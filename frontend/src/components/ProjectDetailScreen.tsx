@@ -469,14 +469,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   metricText: {
-    fontSize: 18,
     color: C.textColor,
   },
   metricDaysText: {
     fontFamily: 'Poppins_500Medium',
+    fontSize: 16,
   },
   metricNumberText: {
     fontFamily: 'Poppins_700Bold',
+    fontSize: 26,
   },
 
   // ── Secciones de Texto ──

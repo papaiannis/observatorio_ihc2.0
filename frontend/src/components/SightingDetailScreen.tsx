@@ -262,28 +262,21 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
     hour: '2-digit',
     minute: '2-digit',
   });
-
   return (
-    <Animated.View style={[styles.root, { transform: [{ translateX: slideAnim }] }]}>
+    <View style={styles.root}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* ── HEADER ── */}
-        <SafeAreaView style={styles.headerSafeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={24} color={C.earth} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle} numberOfLines={1}>Avistamiento</Text>
-            <View style={styles.backBtn} />
-          </View>
-        </SafeAreaView>
-
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Imagen de Portada Full Width */}
           <View style={styles.imageWrapper}>
             <Image source={{ uri: sighting.photo_url }} style={styles.sightingImage} resizeMode="cover" />
+            
+            {/* Botón flotante de regreso */}
+            <TouchableOpacity onPress={handleBack} style={styles.floatingBackBtn} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={22} color={C.earth} />
+            </TouchableOpacity>
             
             {/* Estado Flotante */}
             <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
@@ -395,8 +388,8 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
           </View>
         </ScrollView>
 
-        {/* Input para Nuevo Comentario al Pie */}
-        <SafeAreaView style={styles.inputSafeArea}>
+        {/* Input para Nuevo Comentario al Pie (View normal para evitar duplicar safe-area) */}
+        <View style={styles.inputSafeArea}>
           <View style={styles.commentInputRow}>
             <TextInput
               style={styles.commentInput}
@@ -420,17 +413,29 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
               )}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: C.bg,
-    zIndex: 200,
+    position: 'relative',
+  },
+  floatingBackBtn: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   flex: {
     flex: 1,
@@ -480,7 +485,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     position: 'absolute',
     top: 16,
-    left: 16,
+    right: 16,
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -676,6 +681,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     borderTopWidth: 1,
     borderTopColor: C.border,
+    paddingBottom: 65, // Subir la caja para quedar por encima del footer absoluto
   },
   commentInputRow: {
     flexDirection: 'row',
@@ -699,7 +705,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: C.forest,
+    backgroundColor: C.sage,
     alignItems: 'center',
     justifyContent: 'center',
   },
