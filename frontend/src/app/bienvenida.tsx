@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { useSession, authStore } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +21,7 @@ const C = {
 };
 
 export default function BienvenidaScreen() {
+  const { user } = useSession();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const btn1Anim = useRef(new Animated.Value(0)).current;
@@ -59,37 +61,65 @@ export default function BienvenidaScreen() {
         <Text style={styles.title}>Bienvenido!</Text>
       </Animated.View>
 
-      {/* Botones y Enlace */}
+      {/* Botones y Enlace Condicionados por la Sesión */}
       <View style={styles.actionsArea}>
-        <Animated.View style={{ opacity: btn1Anim, width: '100%', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={styles.btnPrimary}
-            activeOpacity={0.85}
-            onPress={() => router.push('/registro')}
-          >
-            <Text style={styles.btnPrimaryText}>Crear una cuenta</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        {user ? (
+          <>
+            <Animated.View style={{ opacity: btn1Anim, width: '100%', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                activeOpacity={0.85}
+                onPress={() => router.push('/observatorio')}
+              >
+                <Text style={styles.btnPrimaryText}>Ir al Observatorio</Text>
+              </TouchableOpacity>
+            </Animated.View>
 
-        <Animated.View style={{ opacity: btn2Anim, width: '100%', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={styles.btnSecondary}
-            activeOpacity={0.85}
-            onPress={() => router.push('/login')}
-          >
-            <Text style={styles.btnSecondaryText}>Iniciar Sesion</Text>
-          </TouchableOpacity>
-        </Animated.View>
+            <Animated.View style={{ opacity: btn2Anim, width: '100%', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  await authStore.clearSession();
+                }}
+              >
+                <Text style={styles.btnSecondaryText}>Cerrar Sesión</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </>
+        ) : (
+          <>
+            <Animated.View style={{ opacity: btn1Anim, width: '100%', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                activeOpacity={0.85}
+                onPress={() => router.push('/registro')}
+              >
+                <Text style={styles.btnPrimaryText}>Crear una cuenta</Text>
+              </TouchableOpacity>
+            </Animated.View>
 
-        <Animated.View style={{ opacity: linkAnim, marginTop: 10 }}>
-          <TouchableOpacity
-            style={styles.guestLink}
-            activeOpacity={0.7}
-            onPress={() => router.push('/observatorio')}
-          >
-            <Text style={styles.guestLinkText}>Entrar como visitante</Text>
-          </TouchableOpacity>
-        </Animated.View>
+            <Animated.View style={{ opacity: btn2Anim, width: '100%', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                activeOpacity={0.85}
+                onPress={() => router.push('/login')}
+              >
+                <Text style={styles.btnSecondaryText}>Iniciar Sesion</Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View style={{ opacity: linkAnim, marginTop: 10 }}>
+              <TouchableOpacity
+                style={styles.guestLink}
+                activeOpacity={0.7}
+                onPress={() => router.push('/observatorio')}
+              >
+                <Text style={styles.guestLinkText}>Entrar como visitante</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </>
+        )}
       </View>
     </View>
   );
