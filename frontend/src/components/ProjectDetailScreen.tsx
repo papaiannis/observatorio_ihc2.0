@@ -25,7 +25,7 @@ const C = {
   border: '#E8E8E8',
   sage: '#9EB36D',
   sageBg: 'rgba(158,179,109,0.12)',
-  textColor: '#473C33', // Color de tipografía solicitado
+  textColor: '#473C33', // Color de tipografía unificado
 };
 
 interface ProjectDetailScreenProps {
@@ -210,10 +210,12 @@ export default function ProjectDetailScreen({
           </View>
         </View>
 
-        {/* ── MÉTRICAS: Solo días activo en el centro sin card ── */}
-        <View style={styles.centeredMetricRow}>
-          <Text style={styles.singleMetricValue}>{daysActive}d</Text>
-          <Text style={styles.singleMetricLabel}>Días Activo</Text>
+        {/* ── MÉTRICAS: "Dias N" justificado a la izquierda ── */}
+        <View style={styles.metricContainerLeft}>
+          <Text style={styles.metricText}>
+            <Text style={styles.metricDaysText}>Dias </Text>
+            <Text style={styles.metricNumberText}>{daysActive}</Text>
+          </Text>
         </View>
 
         {/* ── DESCRIPCIÓN ── */}
@@ -300,49 +302,40 @@ export default function ProjectDetailScreen({
           </View>
         )}
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ── BARRA DE ACCIÓN INFERIOR (FLOTANDO POR ENCIMA DEL FOOTER) ── */}
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomBarLeft}>
-          <Text style={styles.bottomBarLabel}>Miembros</Text>
-          <Text style={styles.bottomBarValue}>
-            {isSubscribed ? 'Miembro Activo' : 'No Unido'}
-          </Text>
+      {/* ── BOTÓN FLOTANTE SIN RECUADRO (Posicionado sobre el footer) ── */}
+      {joining ? (
+        <View style={styles.floatingRoundBtn}>
+          <ActivityIndicator color={C.white} size="small" />
         </View>
-
-        {joining ? (
-          <View style={styles.bottomRoundBtn}>
-            <ActivityIndicator color={C.white} size="small" />
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.bottomRoundBtn}
-            onPress={handleJoin}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name={isSubscribed ? "checkmark-sharp" : "add-sharp"}
-              size={26}
-              color={C.white}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.floatingRoundBtn}
+          onPress={handleJoin}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name={isSubscribed ? "checkmark-sharp" : "add-sharp"}
+            size={26}
+            color={C.white}
+          />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1, backgroundColor: C.bg, position: 'relative' },
   backOnlyBtn: { padding: 16 },
 
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 40,
+    paddingBottom: 110, // Aumentado para evitar que el contenido final quede tapado por el botón flotante y el footer
     gap: 24,
   },
 
@@ -469,24 +462,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.8)',
   },
 
-  // ── Métrica Centrada (Sin Card) ──
-  centeredMetricRow: {
-    alignItems: 'center',
+  // ── Métrica: "Dias N" justificado a la izquierda ──
+  metricContainerLeft: {
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    marginVertical: 10,
-    gap: 2,
+    marginTop: 4,
   },
-  singleMetricValue: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 32,
-    color: C.textColor, // Usar color unificado
-  },
-  singleMetricLabel: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
+  metricText: {
+    fontSize: 18,
     color: C.textColor,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  },
+  metricDaysText: {
+    fontFamily: 'Poppins_500Medium',
+  },
+  metricNumberText: {
+    fontFamily: 'Poppins_700Bold',
   },
 
   // ── Secciones de Texto ──
@@ -598,42 +588,22 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // ── Barra de Acción Inferior (Fija sobre el Footer) ──
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: C.cardBg,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-  },
-  bottomBarLeft: {
-    gap: 4,
-  },
-  bottomBarLabel: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
-    color: C.textColor,
-    opacity: 0.6,
-  },
-  bottomBarValue: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 18,
-    color: C.textColor,
-  },
-  bottomRoundBtn: {
+  // ── Botón Flotante libre (Sin recuadro, sobre el footer) ──
+  floatingRoundBtn: {
+    position: 'absolute',
+    right: 24,
+    bottom: 85, // Posición firme por encima del menú del Footer (65px)
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: C.textColor, // Color del botón marrón solicitado (#473C33)
+    backgroundColor: C.textColor,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: C.textColor,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
+    zIndex: 100,
   },
 });
