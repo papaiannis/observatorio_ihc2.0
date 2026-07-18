@@ -19,7 +19,7 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={user ? '/observatorio' : '/login'} />;
+  return <Redirect href={user ? '/observatorio' : '/bienvenida'} />;
 }
 
 const styles = StyleSheet.create({
