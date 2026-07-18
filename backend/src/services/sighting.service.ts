@@ -111,7 +111,7 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        profiles (username, avatar_url)
+        profiles!sightings_user_id_fkey (username, avatar_url)
       `)
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
@@ -181,8 +181,8 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        profiles (username, avatar_url),
-        species (scientific_name, common_name)
+        profiles!sightings_user_id_fkey (username, avatar_url),
+        species!validated_species_id (scientific_name, common_name)
       `)
       .order('created_at', { ascending: false });
       
