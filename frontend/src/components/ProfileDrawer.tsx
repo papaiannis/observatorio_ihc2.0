@@ -640,35 +640,32 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
         <View style={styles.infoSection}>
           <Text style={styles.greeting}>Bienvenido,</Text>
           <Text style={styles.userName}>{userName}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{userRole}</Text>
-          </View>
+
+          {/* Badge de rol — visual distinto para cada tipo */}
+          {userRole.toLowerCase() === 'especialista' ? (
+            <View style={[styles.roleBadge, styles.roleBadgeEspecialista]}>
+              <Ionicons name="star" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
+              <Text style={[styles.roleText, styles.roleTextEspecialista]}>Especialista</Text>
+            </View>
+          ) : (
+            <View style={[styles.roleBadge, styles.roleBadgeEntusiasta]}>
+              <Ionicons name="leaf" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
+              <Text style={[styles.roleText, styles.roleTextEntusiasta]}>Entusiasta</Text>
+            </View>
+          )}
+
           <Text style={styles.bio}>{userBio}</Text>
         </View>
 
         <View style={styles.divider} />
 
-        {/* ── Opciones del Menú ── */}
+        {/* ── Opciones Generales ── */}
         <View style={styles.menuSection}>
           <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('sightings')}>
             <MaterialCommunityIcons name="binoculars" size={24} color={C.sage} />
             <Text style={styles.menuLabel}>Mis Avistamientos</Text>
             <Ionicons name="chevron-forward" size={18} color={C.lightText} />
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
-            <Ionicons name="folder-outline" size={24} color={C.sage} />
-            <Text style={styles.menuLabel}>Mis Proyectos</Text>
-            <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-          </TouchableOpacity>
-
-          {userRole.toLowerCase() === 'especialista' && (
-            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('create_project')}>
-              <Ionicons name="add-circle-outline" size={24} color={C.sage} />
-              <Text style={styles.menuLabel}>Crear Proyecto</Text>
-              <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-            </TouchableOpacity>
-          )}
 
           <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('drafts')}>
             <Ionicons name="document-text-outline" size={24} color={C.sage} />
@@ -682,6 +679,48 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
             <Ionicons name="chevron-forward" size={18} color={C.lightText} />
           </TouchableOpacity>
         </View>
+
+        {/* ── Opciones de Especialista ── */}
+        {userRole.toLowerCase() === 'especialista' && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.roleSectionHeader}>
+              <Ionicons name="star" size={13} color="#7B5EA7" />
+              <Text style={styles.roleSectionTitle}>Opciones de Especialista</Text>
+            </View>
+            <View style={styles.menuSection}>
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
+                <Ionicons name="flask-outline" size={24} color="#7B5EA7" />
+                <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Mis Proyectos</Text>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('create_project')}>
+                <Ionicons name="add-circle-outline" size={24} color="#7B5EA7" />
+                <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Crear Proyecto</Text>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* ── Opciones de Entusiasta ── */}
+        {userRole.toLowerCase() !== 'especialista' && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.roleSectionHeader}>
+              <Ionicons name="leaf" size={13} color="#3A9E6D" />
+              <Text style={[styles.roleSectionTitle, { color: '#3A9E6D' }]}>Opciones de Entusiasta</Text>
+            </View>
+            <View style={styles.menuSection}>
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
+                <Ionicons name="folder-outline" size={24} color="#3A9E6D" />
+                <Text style={[styles.menuLabel, styles.menuLabelEntusiasta]}>Proyectos que Sigo</Text>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         <View style={styles.divider} />
 
@@ -982,16 +1021,51 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(158,179,109,0.2)',
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
     marginBottom: 12,
   },
+  roleBadgeEspecialista: {
+    backgroundColor: '#7B5EA7',
+  },
+  roleBadgeEntusiasta: {
+    backgroundColor: '#3A9E6D',
+  },
   roleText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: C.sage,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  roleTextEspecialista: {
+    color: '#FFFFFF',
+  },
+  roleTextEntusiasta: {
+    color: '#FFFFFF',
+  },
+  roleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 2,
+    paddingTop: 4,
+    paddingBottom: 2,
+    marginBottom: 4,
+  },
+  roleSectionTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: '#7B5EA7',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  menuLabelEspecialista: {
+    color: '#7B5EA7',
+  },
+  menuLabelEntusiasta: {
+    color: '#3A9E6D',
   },
   bio: {
     fontFamily: 'Poppins_400Regular',
