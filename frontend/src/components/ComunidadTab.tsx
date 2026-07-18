@@ -65,9 +65,13 @@ const FILTER_STATUS: Record<FilterType, string | null> = {
 
 interface ComunidadTabProps {
   onSightingPress?: (sighting: Sighting) => void;
+  /** true cuando el usuario navega sin sesión */
+  isGuest?: boolean;
+  /** rol del usuario: 'entusiasta' | 'especialista' | 'invitado' */
+  userRole?: string;
 }
 
-export default function ComunidadTab({ onSightingPress }: ComunidadTabProps) {
+export default function ComunidadTab({ onSightingPress, isGuest = false, userRole = 'invitado' }: ComunidadTabProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [tempFilters, setTempFilters] = useState<FilterType[]>(['Todas']);
   const [appliedFilters, setAppliedFilters] = useState<FilterType[]>(['Todas']);
@@ -148,6 +152,39 @@ export default function ComunidadTab({ onSightingPress }: ComunidadTabProps) {
     ]);
   };
 
+  const isEspecialista = userRole === 'especialista';
+
+  /** Muestra alert de login cuando un invitado intenta una acción interactiva */
+  const requireLogin = (action: () => void) => {
+    if (isGuest) {
+      Alert.alert(
+        'Inicia sesión',
+        'Necesitas una cuenta para interactuar con la comunidad.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+    action();
+  };
+
+  /** Apelar una curaduría (solo Especialistas) */
+  const handleAppeal = async (item: Sighting) => {
+    try {
+      const { token } = await authStore.getSession();
+      if (!token) return;
+      await fetch(`${API_URL}/api/v1/sightings/${item.id}/appeal`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      // Actualiza el estado local optimistamente
+      setSightings((prev) =>
+        prev.map((s) => (s.id === item.id ? { ...s, status: 'in_review' } : s)),
+      );
+    } catch {
+      Alert.alert('Error', 'No se pudo apelar la curaduría.');
+    }
+  };
+
   // Aplicar filtros
   const filteredSightings = sightings.filter((s) => {
     if (hiddenIds.has(s.id)) return false;
@@ -206,7 +243,7 @@ export default function ComunidadTab({ onSightingPress }: ComunidadTabProps) {
         )}
 
         {/* Floating actions for own sighting */}
-        {isOwn && (
+        {isOwn && !isGuest && (
           <View style={styles.cardActionsFloating} pointerEvents="box-none">
             <TouchableOpacity
               style={styles.actionBtnFloating}
@@ -223,6 +260,17 @@ export default function ComunidadTab({ onSightingPress }: ComunidadTabProps) {
               <Ionicons name="trash-outline" size={14} color={C.white} />
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Botón Apelar (solo Especialistas en avistamientos validados ajenos) */}
+        {isEspecialista && !isOwn && item.status === 'validated' && (
+          <TouchableOpacity
+            style={styles.appealBtn}
+            activeOpacity={0.8}
+            onPress={() => handleAppeal(item)}
+          >
+            <Ionicons name="flag-outline" size={12} color={C.white} />
+          </TouchableOpacity>
         )}
 
         {/* Text overlay for contrast and readability */}
@@ -498,6 +546,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 6,
     paddingVertical: 3,
+    zIndex: 15,
+  },
+  appealBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(74,63,53,0.75)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 15,
   },
   editedBadgeTextFloating: {

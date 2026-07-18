@@ -1,22 +1,45 @@
+import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface UserProfile {
+// ── Tipos exportados ──────────────────────────────────────────────────────────
+export interface UserProfile {
   id: string;
   email: string;
   nombre?: string;
   username?: string;
+  /** Valores posibles: 'entusiasta' | 'especialista' | 'administrador' */
   role?: string;
   avatar_url?: string;
   bio?: string;
 }
 
+export interface SessionState {
+  token: string | null;
+  user: UserProfile | null;
+  /** true mientras se lee el almacenamiento por primera vez */
+  loading: boolean;
+}
+
+// ── Claves de almacenamiento ──────────────────────────────────────────────────
 const TOKEN_KEY = 'auth_token';
 const USER_KEY  = 'auth_user';
 
+// ── Estado singleton en memoria ───────────────────────────────────────────────
 let inMemoryToken: string | null = null;
 let inMemoryUser: UserProfile | null = null;
 
+/**
+ * Suscriptores reactivos: componentes que usan `useSession()` recibirán
+ * actualizaciones cuando la sesión cambie sin necesidad de re-montar.
+ */
+let listeners: Array<(state: SessionState) => void> = [];
+
+function notifyListeners(state: SessionState) {
+  listeners.forEach((fn) => fn(state));
+}
+
+// ── Persistencia ──────────────────────────────────────────────────────────────
 async function persist(token: string, user: UserProfile) {
   if (Platform.OS === 'web') {
     try {
@@ -61,11 +84,13 @@ async function clearPersisted() {
   }
 }
 
+// ── Store principal ───────────────────────────────────────────────────────────
 export const authStore = {
   async setSession(token: string, user: UserProfile) {
     inMemoryToken = token;
     inMemoryUser  = user;
     await persist(token, user);
+    notifyListeners({ token, user, loading: false });
   },
 
   async getSession(): Promise<{ token: string | null; user: UserProfile | null }> {
@@ -85,12 +110,56 @@ export const authStore = {
     if (inMemoryUser) {
       inMemoryUser = { ...inMemoryUser, ...patch };
       if (token) await persist(token, inMemoryUser);
+      notifyListeners({ token, user: inMemoryUser, loading: false });
     }
   },
 
+  /**
+   * Limpia la sesión completamente: memoria + almacenamiento persistente.
+   * SIEMPRE llama esto desde los botones de Cerrar Sesión.
+   */
   async clearSession() {
     inMemoryToken = null;
     inMemoryUser  = null;
     await clearPersisted();
+    notifyListeners({ token: null, user: null, loading: false });
+  },
+
+  _subscribe(fn: (state: SessionState) => void) {
+    listeners.push(fn);
+    return () => {
+      listeners = listeners.filter((l) => l !== fn);
+    };
   },
 };
+
+// ── Hook reactivo ─────────────────────────────────────────────────────────────
+/**
+ * Hook que expone el estado de la sesión de forma reactiva.
+ * Se actualiza automáticamente cuando se llama a `setSession` o `clearSession`.
+ *
+ * @example
+ * const { user, token, loading } = useSession();
+ * const isGuest = !user;
+ * const isEspecialista = user?.role?.toLowerCase() === 'especialista';
+ */
+export function useSession(): SessionState {
+  const [state, setState] = useState<SessionState>({
+    token: null,
+    user: null,
+    loading: true,
+  });
+
+  useEffect(() => {
+    // Carga inicial desde almacenamiento
+    authStore.getSession().then(({ token, user }) => {
+      setState({ token, user, loading: false });
+    });
+
+    // Suscribirse a cambios futuros (login / logout)
+    const unsub = authStore._subscribe((s) => setState(s));
+    return unsub;
+  }, []);
+
+  return state;
+}

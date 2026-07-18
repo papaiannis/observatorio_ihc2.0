@@ -1,22 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
-const TAB_WIDTH = width / 5;
-const CIRCLE_SIZE = 64; // Círculo un poco más grande para el efecto
+const CIRCLE_SIZE = 64;
 
 const C = {
-  sage: '#9EB36D', // Verde claro de la barra
-  earth: '#4A3F35', // Marrón oscuro de los iconos
-  bg: '#F6F6F6', // Fondo del observatorio para el efecto de recorte
+  sage: '#9EB36D',
+  earth: '#4A3F35',
+  bg: '#F6F6F6',
 };
 
 export type TabType = 'observatorio' | 'documentos' | 'crear' | 'comunidad' | 'configuracion';
@@ -24,38 +23,48 @@ export type TabType = 'observatorio' | 'documentos' | 'crear' | 'comunidad' | 'c
 interface FooterProps {
   activeTab: TabType;
   onTabPress?: (tab: TabType) => void;
+  /** true cuando el usuario no tiene sesión iniciada */
+  isGuest?: boolean;
 }
 
-const TABS: { id: TabType; icon: string; library: 'ionicons' | 'material' }[] = [
-  { id: 'observatorio', icon: 'dome-light', library: 'material' },
-  { id: 'documentos', icon: 'folder-open-outline', library: 'ionicons' },
-  { id: 'crear', icon: 'add', library: 'ionicons' },
-  { id: 'comunidad', icon: 'people-outline', library: 'ionicons' },
-  { id: 'configuracion', icon: 'settings-sharp', library: 'ionicons' },
+interface TabDef {
+  id: TabType;
+  icon: string;
+  library: 'ionicons' | 'material';
+  /** Si true, el tab está oculto para invitados */
+  requiresAuth: boolean;
+}
+
+const ALL_TABS: TabDef[] = [
+  { id: 'observatorio', icon: 'dome-light',        library: 'material',  requiresAuth: false },
+  { id: 'documentos',   icon: 'folder-open-outline',library: 'ionicons',  requiresAuth: false },
+  { id: 'crear',        icon: 'add',               library: 'ionicons',  requiresAuth: true  },
+  { id: 'comunidad',    icon: 'people-outline',     library: 'ionicons',  requiresAuth: false },
+  { id: 'configuracion',icon: 'settings-sharp',     library: 'ionicons',  requiresAuth: true  },
 ];
 
-export default function Footer({ activeTab, onTabPress }: FooterProps) {
+export default function Footer({ activeTab, onTabPress, isGuest = false }: FooterProps) {
+  // Filtra tabs según si el usuario es invitado
+  const TABS = useMemo(
+    () => (isGuest ? ALL_TABS.filter((t) => !t.requiresAuth) : ALL_TABS),
+    [isGuest],
+  );
+
+  const TAB_WIDTH = width / TABS.length;
+
   // Animación horizontal del círculo
   const circleX = useRef(new Animated.Value(0)).current;
 
-  // Animaciones verticales independientes para levantar cada icono
-  const iconY0 = useRef(new Animated.Value(0)).current;
-  const iconY1 = useRef(new Animated.Value(0)).current;
-  const iconY2 = useRef(new Animated.Value(0)).current;
-  const iconY3 = useRef(new Animated.Value(0)).current;
-  const iconY4 = useRef(new Animated.Value(0)).current;
-
-  const iconAnimations = [iconY0, iconY1, iconY2, iconY3, iconY4];
+  // Animaciones verticales para cada tab (máximo 5)
+  const iconAnims = useRef(ALL_TABS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     const activeIndex = TABS.findIndex((tab) => tab.id === activeTab);
     if (activeIndex === -1) return;
 
-    // Calcular la posición central del círculo
     const targetCircleX = TAB_WIDTH * activeIndex + TAB_WIDTH / 2 - CIRCLE_SIZE / 2;
 
-    const animations = [
-      // Mueve el círculo horizontalmente
+    const animations: Animated.CompositeAnimation[] = [
       Animated.spring(circleX, {
         toValue: targetCircleX,
         useNativeDriver: true,
@@ -65,24 +74,36 @@ export default function Footer({ activeTab, onTabPress }: FooterProps) {
     ];
 
     // Levanta el icono activo y baja los demás
-    TABS.forEach((_, index) => {
+    TABS.forEach((tab, index) => {
+      const globalIndex = ALL_TABS.findIndex((t) => t.id === tab.id);
       const isCurrent = index === activeIndex;
       animations.push(
-        Animated.spring(iconAnimations[index], {
-          toValue: isCurrent ? -33 : 0, // Se levanta -33px para quedar en el centro del círculo (limite superior de la barra)
+        Animated.spring(iconAnims[globalIndex], {
+          toValue: isCurrent ? -33 : 0,
           useNativeDriver: true,
           tension: 60,
           friction: 7,
-        })
+        }),
       );
     });
 
     Animated.parallel(animations).start();
-  }, [activeTab]);
+  }, [activeTab, TABS, TAB_WIDTH]);
 
-  const handlePress = (tabId: TabType) => {
-    if (tabId === activeTab) return;
-    onTabPress?.(tabId);
+  const handlePress = (tab: TabDef) => {
+    if (tab.id === activeTab) return;
+
+    // Invitado intenta acceder a una acción protegida
+    if (isGuest && tab.requiresAuth) {
+      Alert.alert(
+        'Inicia sesión',
+        'Necesitas una cuenta para usar esta función.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+
+    onTabPress?.(tab.id);
   };
 
   return (
@@ -94,27 +115,26 @@ export default function Footer({ activeTab, onTabPress }: FooterProps) {
       <Animated.View
         style={[
           styles.activeCircle,
-          {
-            transform: [{ translateX: circleX }],
-          },
+          { transform: [{ translateX: circleX }] },
         ]}
       />
 
       {/* Capa superior interactiva para los botones */}
-      <View style={styles.tabBarContent}>
-        {TABS.map((tab, index) => {
+      <View style={[styles.tabBarContent, { width }]}>
+        {TABS.map((tab) => {
+          const globalIndex = ALL_TABS.findIndex((t) => t.id === tab.id);
           const iconSize = tab.id === 'crear' ? 32 : 26;
 
           return (
             <TouchableOpacity
               key={tab.id}
-              style={styles.tabItem}
+              style={[styles.tabItem, { width: TAB_WIDTH }]}
               activeOpacity={0.8}
-              onPress={() => handlePress(tab.id)}
+              onPress={() => handlePress(tab)}
             >
               <Animated.View
                 style={{
-                  transform: [{ translateY: iconAnimations[index] }],
+                  transform: [{ translateY: iconAnims[globalIndex] }],
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -146,11 +166,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: width,
-    height: 100, // Aumentado para acomodar el círculo más alto sin recortar
+    height: 100,
     justifyContent: 'flex-end',
     backgroundColor: 'transparent',
   },
-  // Barra inferior Sage Green
   tabBarBackground: {
     backgroundColor: C.sage,
     height: 65,
@@ -161,32 +180,29 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 10,
   },
-  // Contenedor de botones interactivos
   tabBarContent: {
     height: 65,
     flexDirection: 'row',
     alignItems: 'center',
-    width: width,
     position: 'absolute',
     bottom: 0,
     zIndex: 20,
   },
   tabItem: {
-    flex: 1,
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Círculo Sage Green con borde del color de fondo para simular el recorte
   activeCircle: {
     position: 'absolute',
-    bottom: 33, // Posición ajustada para que el centro del círculo esté en el límite superior (65px - 32px = 33px)
+    bottom: 33,
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: C.sage, // Mismo color de la barra
-    borderWidth: 6, // El grosor del recorte
-    borderColor: C.bg, // Color de fondo del app (#F6F6F6) para simular el corte curvo
-    zIndex: 15, // Por encima del fondo, por debajo de los iconos
+    backgroundColor: C.sage,
+    borderWidth: 6,
+    borderColor: C.bg,
+    zIndex: 15,
   },
 });
+

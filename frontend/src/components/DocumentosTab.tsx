@@ -7,6 +7,7 @@ import {
   Dimensions,
   Image,
   ScrollView,
+  Alert,
   ActivityIndicator,
   Animated,
   RefreshControl,
@@ -53,13 +54,33 @@ interface Investigation {
   subscriber_count?: number;
 }
 
-export default function DocumentosTab({ onProjectPress }: { onProjectPress?: (project: Investigation) => void }) {
+export default function DocumentosTab({
+  onProjectPress,
+  isGuest = false,
+}: {
+  onProjectPress?: (project: Investigation) => void;
+  /** true cuando el usuario navega sin sesión */
+  isGuest?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const [projects, setProjects] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
+
+  /** Guard: muestra alert de login para invitados */
+  const handleProjectPress = (project: Investigation) => {
+    if (isGuest) {
+      Alert.alert(
+        'Inicia sesión',
+        'Crea una cuenta gratuita para unirte a investigaciones científicas.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+    onProjectPress?.(project);
+  };
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -105,7 +126,7 @@ export default function DocumentosTab({ onProjectPress }: { onProjectPress?: (pr
       <TouchableOpacity
         key={item.id}
         activeOpacity={0.9}
-        onPress={() => onProjectPress?.(item)}
+        onPress={() => handleProjectPress(item)}
       >
         <Animated.View
           style={[styles.card, { transform: [{ scale }] }]}

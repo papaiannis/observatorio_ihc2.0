@@ -217,11 +217,18 @@ export default function LoginScreen() {
             }
           </TouchableOpacity>
 
-          {/* ── Footer Link (Opcional, igual que en registro) ── */}
+          {/* ── Footer Link ── */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>¿No tienes cuenta? </Text>
             <TouchableOpacity onPress={() => router.push('/registro')} activeOpacity={0.7}>
               <Text style={styles.footerLink}>Regístrate</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Guest Link ── */}
+          <View style={styles.guestFooter}>
+            <TouchableOpacity onPress={() => router.replace('/observatorio')} activeOpacity={0.7}>
+              <Text style={[styles.footerLink, { color: C.sage }]}>Entrar como visitante</Text>
             </TouchableOpacity>
           </View>
 
@@ -359,5 +366,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
     color: C.earth,
+  },
+  guestFooter: {
+    alignItems: 'center',
+    marginTop: 16,
   },
 });

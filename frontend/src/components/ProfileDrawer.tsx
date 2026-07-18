@@ -41,7 +41,14 @@ type DrawerView = 'home' | 'sightings' | 'drafts' | 'edit' | 'projects' | 'creat
 
 interface ProfileDrawerProps {
   onClose: () => void;
-  onNavigate?: (target: 'sightings' | 'drafts' | 'tracking' | 'project', data?: any) => void;
+  onNavigate?: (
+    target: 'sightings' | 'drafts' | 'tracking' | 'project' | 'curaduria',
+    data?: any,
+  ) => void;
+  /** true si el usuario no tiene sesión */
+  isGuest?: boolean;
+  /** rol del usuario (normalizado a lowercase) */
+  userRole?: string;
 }
 
 interface Sighting {
@@ -59,7 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
   in_review: 'En revisión',
 };
 
-export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProps) {
+export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, userRole: userRoleProp }: ProfileDrawerProps) {
   const insets = useSafeAreaInsets();
 
   // ── Estado del usuario ─────────────────────────────────
@@ -88,7 +95,9 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
       const { user, token: t } = await authStore.getSession();
       if (user) {
         setUserName(user.nombre || user.username || 'Usuario');
-        if (user.role) setUserRole(user.role);
+        // Prioriza el rol que viene como prop (ya normalizado) sobre el del storage
+        const roleFromSession = user.role?.toLowerCase() ?? 'entusiasta';
+        setUserRole(userRoleProp ?? roleFromSession);
         if (user.avatar_url) setAvatarUri(user.avatar_url);
         setUserId(user.id);
         setToken(t);
@@ -714,6 +723,20 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
               <Text style={styles.roleSectionTitle}>Opciones de Especialista</Text>
             </View>
             <View style={styles.menuSection}>
+              {/* Panel de Curaduría — acceso exclusivo Especialista */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => {
+                  onClose();
+                  onNavigate?.('curaduria');
+                }}
+              >
+                <Ionicons name="shield-checkmark-outline" size={24} color="#7B5EA7" />
+                <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Panel de Curaduría</Text>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
                 <Ionicons name="flask-outline" size={24} color="#7B5EA7" />
                 <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Mis Proyectos</Text>
@@ -756,6 +779,9 @@ export default function ProfileDrawer({ onClose, onNavigate }: ProfileDrawerProp
           onPress={async () => {
             await authStore.clearSession();
             onClose();
+            import('expo-router').then(({ router }) => {
+              router.replace('/login');
+            });
           }}
         >
           <Ionicons name="log-out-outline" size={24} color={C.red} />

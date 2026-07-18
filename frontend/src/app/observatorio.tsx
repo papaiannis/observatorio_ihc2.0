@@ -7,9 +7,11 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { useLocalSearchParams } from 'expo-router';
+import { useSession } from '../utils/authStore';
 
 // Componentes Reutilizables de Estructura
 import Header from '../components/Header';
@@ -25,6 +27,7 @@ import ConfiguracionTab from '../components/ConfiguracionTab';
 import SightingTrackingScreen, { TrackingSighting } from '../components/SightingTrackingScreen';
 import SightingDetailScreen from '../components/SightingDetailScreen';
 import ProjectDetailScreen from '../components/ProjectDetailScreen';
+import CuradoriaScreen from '../components/CuradoriaScreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,11 +54,18 @@ const TAB_TO_INDEX: Record<string, number> = {
 };
 
 export default function ObservatorioScreen() {
+  // ── Sesión y rol ─────────────────────────────────────────────────────────────
+  const { user } = useSession();
+  const isGuest = !user;
+  const userRole = user?.role?.toLowerCase() ?? 'invitado';
+  const isEspecialista = userRole === 'especialista';
+
   const [activeTab, setActiveTab] = useState<TabType>('observatorio');
   const [prevTab, setPrevTab] = useState<TabType>('observatorio');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showDraftsOnCrear, setShowDraftsOnCrear] = useState(false);
   const [trackingSighting, setTrackingSighting] = useState<TrackingSighting | null>(null);
+  const [showCuraduria, setShowCuraduria] = useState(false);
 
   const [cameraMounted, setCameraMounted] = useState(false);
   const [selectedSighting, setSelectedSighting] = useState<any | null>(null);
@@ -65,9 +75,13 @@ export default function ObservatorioScreen() {
   // Si viene del onboarding con la orden de subir avistamiento, abrimos la cámara
   useEffect(() => {
     if (openCamera === 'true') {
-      setActiveTab('crear');
+      if (isGuest) {
+        Alert.alert('Inicia sesión', 'Necesitas una cuenta para subir avistamientos.');
+      } else {
+        setActiveTab('crear');
+      }
     }
-  }, [openCamera]);
+  }, [openCamera, isGuest]);
 
   // Animaciones
   const anim = useRef(new Animated.Value(0)).current; // Drawer slide
@@ -131,7 +145,10 @@ export default function ObservatorioScreen() {
     }).start(() => setDrawerOpen(false));
   };
 
-  const handleDrawerNavigate = (target: 'sightings' | 'drafts' | 'tracking' | 'project', data?: any) => {
+  const handleDrawerNavigate = (
+    target: 'sightings' | 'drafts' | 'tracking' | 'project' | 'curaduria',
+    data?: any,
+  ) => {
     closeDrawer();
     if (target === 'drafts') {
       setActiveTab('crear');
@@ -143,6 +160,8 @@ export default function ObservatorioScreen() {
     } else if (target === 'project' && data) {
       // Esperar a que termine la animación del drawer (220ms) antes de mostrar el detalle
       setTimeout(() => setSelectedProject(data), 240);
+    } else if (target === 'curaduria') {
+      setTimeout(() => setShowCuraduria(true), 240);
     }
   };
 
@@ -201,7 +220,12 @@ export default function ObservatorioScreen() {
             { width: DRAWER_WIDTH, transform: [{ translateX: drawerTranslateX }] },
           ]}
         >
-          <ProfileDrawer onClose={closeDrawer} onNavigate={handleDrawerNavigate} />
+          <ProfileDrawer
+            onClose={closeDrawer}
+            onNavigate={handleDrawerNavigate}
+            isGuest={isGuest}
+            userRole={userRole}
+          />
         </Animated.View>
       )}
 
@@ -234,7 +258,13 @@ export default function ObservatorioScreen() {
         {/* ── HEADER ── */}
         <Header
           onAvatarPress={drawerOpen ? closeDrawer : openDrawer}
-          onAddPress={() => setActiveTab('crear')}
+          onAddPress={() => {
+            if (isGuest) {
+              Alert.alert('Inicia sesión', 'Necesitas una cuenta para subir avistamientos.');
+            } else {
+              setActiveTab('crear');
+            }
+          }}
         />
 
         {/* ── CONTENIDO CON TRANSICIÓN DE HOJA HORIZONTAL ── */}
@@ -261,15 +291,19 @@ export default function ObservatorioScreen() {
               contentContainerStyle={{ width: width * 4 }}
             >
               <View style={{ width }}><ObservatorioTab onSightingPress={setSelectedSighting} /></View>
-              <View style={{ width }}><DocumentosTab onProjectPress={setSelectedProject} /></View>
-              <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} /></View>
+              <View style={{ width }}><DocumentosTab onProjectPress={setSelectedProject} isGuest={isGuest} /></View>
+              <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} isGuest={isGuest} userRole={userRole} /></View>
               <View style={{ width }}><ConfiguracionTab /></View>
             </ScrollView>
           )}
         </View>
 
         {/* ── FOOTER ── */}
-        <Footer activeTab={activeTab === 'crear' ? prevTab : activeTab} onTabPress={setActiveTab} />
+        <Footer
+          activeTab={activeTab === 'crear' ? prevTab : activeTab}
+          onTabPress={setActiveTab}
+          isGuest={isGuest}
+        />
       </Animated.View>
 
       {/* ── CAPA 3: HOJA FLUIDA DE LA CÁMARA (SLIDE-UP DESDE ABAJO) ── */}
@@ -298,6 +332,11 @@ export default function ObservatorioScreen() {
           initialSighting={selectedSighting}
           onBack={() => setSelectedSighting(null)}
         />
+      )}
+
+      {/* ── CAPA 5: PANEL DE CURADURÍA (SOLO ESPECIALISTAS) ── */}
+      {showCuraduria && isEspecialista && (
+        <CuradoriaScreen onBack={() => setShowCuraduria(false)} />
       )}
 
 
