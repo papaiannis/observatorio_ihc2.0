@@ -29,12 +29,27 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ success: false, error: error.message });
     }
 
+    // Usamos un cliente de Supabase con el token del usuario para respetar RLS
+    const userSupabase = createClient(env.SUPABASE_URL!, env.SUPABASE_KEY!, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${data.session?.access_token}`
+        }
+      }
+    });
+
     // Obtener perfil completo del usuario (role, username, avatar)
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await userSupabase
       .from('profiles')
       .select('username, role, avatar_url')
       .eq('id', data.user!.id)
       .single();
+
+    if (profileError) {
+      console.error('Error fetching profile for user:', data.user!.id, profileError);
+    } else {
+      console.log('Profile fetched:', profile);
+    }
 
     // Payload completo para la app móvil
     return res.status(200).json({
