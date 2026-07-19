@@ -272,7 +272,7 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
     minute: '2-digit',
   });
   return (
-    <View style={styles.root}>
+    <Animated.View style={[styles.root, { transform: [{ translateX: slideAnim }] }]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

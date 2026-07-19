@@ -47,6 +47,8 @@ export interface TrackingSighting {
   observed_at: string;
   updated_at?: string;
   created_at?: string;
+  species?: { scientific_name: string; common_name?: string } | null;
+  validator?: { username: string; avatar_url?: string | null; validated_at: string } | null;
 }
 
 interface SightingTrackingScreenProps {
@@ -147,7 +149,7 @@ export default function SightingTrackingScreen({
         });
         if (res.ok) {
           const data = await res.json();
-          setSighting({ ...initialSighting, ...data });
+          if (data.sighting) setSighting({ ...initialSighting, ...data.sighting });
         }
       } catch {}
       setLoading(false);
@@ -391,13 +393,37 @@ export default function SightingTrackingScreen({
                     </View>
                   )}
 
-                  {/* Estado validado: confirmación */}
+                  {/* Estado validado: confirmación + quién validó */}
                   {sighting.status === 'validated' && idx === 3 && (
                     <View style={styles.validatedPanel}>
-                      <Ionicons name="checkmark-circle" size={18} color={C.green} />
-                      <Text style={styles.validatedText}>
-                        ¡Tu avistamiento fue verificado y publicado en la comunidad!
-                      </Text>
+                      <View style={styles.validatedHeaderRow}>
+                        <Ionicons name="checkmark-circle" size={18} color={C.green} />
+                        <Text style={styles.validatedText}>
+                          {sighting.species?.common_name || sighting.species?.scientific_name
+                            ? `Identificado como "${sighting.species.common_name ?? sighting.species.scientific_name}" y publicado en la comunidad.`
+                            : '¡Tu avistamiento fue verificado y publicado en la comunidad!'}
+                        </Text>
+                      </View>
+
+                      {sighting.validator && (
+                        <View style={styles.validatorRow}>
+                          {sighting.validator.avatar_url ? (
+                            <Image source={{ uri: sighting.validator.avatar_url }} style={styles.validatorAvatar} />
+                          ) : (
+                            <View style={[styles.validatorAvatar, styles.validatorAvatarFallback]}>
+                              <Ionicons name="person" size={14} color={C.white} />
+                            </View>
+                          )}
+                          <View style={styles.flexShrink}>
+                            <Text style={styles.validatorLabel}>
+                              Validado por <Text style={styles.validatorName}>@{sighting.validator.username}</Text>
+                            </Text>
+                            <Text style={styles.validatorDate}>
+                              {formatDateTime(sighting.validator.validated_at)}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
                     </View>
                   )}
 
@@ -632,14 +658,17 @@ const styles = StyleSheet.create({
 
   // ── Panel Validado ────────────────────────────────────
   validatedPanel: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
     backgroundColor: C.greenBg,
     borderRadius: 14,
     padding: 14,
     marginTop: 10,
     width: '95%',
+    gap: 12,
+  },
+  validatedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
   },
   validatedText: {
     flex: 1,
@@ -647,5 +676,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: C.forest,
     lineHeight: 19,
+  },
+  validatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(76,175,80,0.25)',
+  },
+  flexShrink: {
+    flexShrink: 1,
+  },
+  validatorAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.grayCircle,
+  },
+  validatorAvatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.green,
+  },
+  validatorLabel: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: C.forest,
+  },
+  validatorName: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: C.forest,
+  },
+  validatorDate: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: C.gray,
+    marginTop: 1,
   },
 });
