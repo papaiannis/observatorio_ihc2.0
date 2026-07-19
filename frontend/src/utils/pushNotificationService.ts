@@ -1,28 +1,38 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { authStore } from './authStore';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
-// Configurar cómo se comportan las notificaciones al llegar con la app abierta en primer plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
+let Notifications: any = null;
+
+if (!isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+    // Configurar cómo se comportan las notificaciones al llegar con la app abierta en primer plano
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch (error) {
+    console.warn('Error cargando expo-notifications:', error);
+  }
+}
 
 /**
  * Solicita permisos de notificación al dispositivo, obtiene el token de push de Expo,
  * y lo envía al backend si el usuario está autenticado.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' || isExpoGo || !Notifications) {
+    console.log('Aviso: Ejecutando en web o Expo Go. Las notificaciones push están deshabilitadas.');
     return null;
   }
 

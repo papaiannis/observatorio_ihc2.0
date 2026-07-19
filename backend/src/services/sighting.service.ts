@@ -121,7 +121,14 @@ export class SightingService {
     return data;
   }
 
-  static async validateSighting(sightingId: string, userToken: string, validatedSpeciesId: string) {
+  static async validateSighting(
+    sightingId: string, 
+    userId: string, 
+    userToken: string, 
+    validatedSpeciesId: string,
+    expertComment?: string,
+    expertRating?: number
+  ) {
     const authClient = createAuthenticatedClient(userToken);
     
     // Verificar que la especie existe y obtener sus nombres para la notificación
@@ -133,13 +140,20 @@ export class SightingService {
       
     if (spError || !species) throw new AppError('Especie no válida', 400);
 
-    const updateData = {
+    const updateData: any = {
       validated_species_id: validatedSpeciesId,
       status: 'validated',
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await authClient
+    if (expertComment) updateData.expert_comment = expertComment;
+    if (expertRating) updateData.expert_rating = expertRating;
+    if (expertComment || expertRating) {
+      updateData.rated_by = userId;
+      updateData.rated_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
       .from('sightings')
       .update(updateData)
       .eq('id', sightingId)

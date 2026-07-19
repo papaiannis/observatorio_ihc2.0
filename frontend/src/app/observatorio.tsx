@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { useLocalSearchParams } from 'expo-router';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useSession } from '../utils/authStore';
 import { registerForPushNotificationsAsync } from '../utils/pushNotificationService';
 
@@ -62,6 +62,14 @@ export default function ObservatorioScreen() {
   const userRole = user?.role?.toLowerCase() ?? 'invitado';
   const isEspecialista = userRole === 'especialista';
 
+  const isExpoGo = Constants.appOwnership === 'expo';
+  let Notifications: any = null;
+  if (!isExpoGo) {
+    try {
+      Notifications = require('expo-notifications');
+    } catch (error) {}
+  }
+
   const [activeTab, setActiveTab] = useState<TabType>('observatorio');
   const [prevTab, setPrevTab] = useState<TabType>('observatorio');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -93,20 +101,25 @@ export default function ObservatorioScreen() {
       registerForPushNotificationsAsync();
     }
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as any;
-      if (data?.sightingId) {
-        setTrackingSighting({
-          id: data.sightingId,
-          status: 'validated',
-          observed_at: new Date().toISOString(),
-          preliminary_species: 'Avistamiento',
-        });
-      }
-    });
+    let responseListener: any;
+    if (Notifications) {
+      responseListener = Notifications.addNotificationResponseReceivedListener((response: any) => {
+        const data = response.notification.request.content.data as any;
+        if (data?.sightingId) {
+          setTrackingSighting({
+            id: data.sightingId,
+            status: 'validated',
+            observed_at: new Date().toISOString(),
+            preliminary_species: 'Avistamiento',
+          });
+        }
+      });
+    }
 
     return () => {
-      responseListener.remove();
+      if (responseListener) {
+        responseListener.remove();
+      }
     };
   }, [isGuest]);
 
