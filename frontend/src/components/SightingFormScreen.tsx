@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { WebView } from 'react-native-webview';
 import { authStore as auth } from '../utils/authStore';
@@ -76,6 +77,7 @@ export default function SightingFormScreen({
 
   const [latitude, setLatitude] = useState<string>('');
   const [longitude, setLongitude] = useState<string>('');
+  const [accuracy, setAccuracy] = useState<number | null>(null);
 
   // ── Banderas para "Metadatos editados" ────────────────────
   const [dateEdited, setDateEdited] = useState(false);
@@ -118,9 +120,16 @@ export default function SightingFormScreen({
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-        const { latitude: lat, longitude: lng } = loc.coords;
+        const { latitude: lat, longitude: lng, accuracy: acc } = loc.coords;
+        
+        // Filtramos datos muy ruidosos si la precisión es peor a 100 metros
+        if (acc && acc > 100) {
+          console.warn('GPS poco preciso:', acc);
+        }
+        
         setLatitude(lat.toFixed(6));
         setLongitude(lng.toFixed(6));
+        setAccuracy(acc);
 
         // Geocodificación inversa
         const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -187,10 +196,28 @@ export default function SightingFormScreen({
       }
 
       // 2. Continuar con la publicación normal del avistamiento
-      const formData = new FormData();
       const fileName = photoUri.split('/').pop() ?? 'photo.jpg';
-      const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-      formData.append('photo', { uri: photoUri, name: fileName, type: fileType } as any);
+      const fileType = fileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      
+      // Validación estricta de tipo MIME y tamaño (Max 5MB)
+      if (fileType !== 'image/png' && fileType !== 'image/jpeg') {
+        throw new Error('Tipo de archivo no permitido. Solo JPG y PNG.');
+      }
+      
+      const fileInfo = await FileSystem.getInfoAsync(photoUri);
+      if (fileInfo.exists && fileInfo.size && fileInfo.size > 5 * 1024 * 1024) {
+        throw new Error('La imagen supera el tamaño máximo permitido de 5MB.');
+      }
+
+      const formData = new FormData();
+      
+      // Corrección para React Native fetch FormData Network request failed
+      const normalizedUri = Platform.OS === 'ios' ? photoUri.replace('file://', '') : photoUri;
+      formData.append('photo', JSON.parse(JSON.stringify({ 
+        uri: normalizedUri, 
+        name: fileName, 
+        type: fileType 
+      })));
 
       if (species.trim()) formData.append('preliminary_species', species.trim());
       formData.append('observed_at', new Date(photoTimestamp || Date.now()).toISOString());
@@ -199,6 +226,10 @@ export default function SightingFormScreen({
         formData.append('latitude', latitude);
         formData.append('longitude', longitude);
       }
+      
+      if (accuracy) {
+        formData.append('accuracy', accuracy.toString());
+      }
 
       if (metadataEdited) {
         formData.append('metadata_edited', 'true');
@@ -206,7 +237,10 @@ export default function SightingFormScreen({
 
       const res = await fetch(`${API_URL}/api/v1/sightings`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${activeToken}` },
+        headers: { 
+          Accept: 'application/json',
+          Authorization: `Bearer ${activeToken}` 
+        },
         body: formData,
       });
 
