@@ -163,6 +163,59 @@ export class SightingService {
     return data;
   }
 
+  /**
+   * Devuelve un avistamiento junto con quién lo validó (si aplica).
+   * Solo accesible por el dueño del avistamiento.
+   */
+  static async getSightingById(sightingId: string, userId: string, userToken: string) {
+    const authClient = createAuthenticatedClient(userToken);
+
+    const { data: sighting, error } = await authClient
+      .from('sightings')
+      .select(`
+        *,
+        species!validated_species_id (scientific_name, common_name)
+      `)
+      .eq('id', sightingId)
+      .single();
+
+    if (error || !sighting) throw new AppError('Avistamiento no encontrado', 404);
+    if (sighting.user_id !== userId) {
+      throw new AppError('No tienes permiso para ver este avistamiento', 403);
+    }
+
+    let validator: { username: string; avatar_url: string | null; validated_at: string } | null = null;
+
+    if (sighting.status === 'validated') {
+      const { data: log } = await authClient
+        .from('curation_logs')
+        .select('specialist_id, created_at')
+        .eq('sighting_id', sightingId)
+        .eq('new_status', 'validated')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (log?.specialist_id) {
+        const { data: profile } = await authClient
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', log.specialist_id)
+          .maybeSingle();
+
+        if (profile) {
+          validator = {
+            username: profile.username,
+            avatar_url: profile.avatar_url,
+            validated_at: log.created_at,
+          };
+        }
+      }
+    }
+
+    return { ...sighting, validator };
+  }
+
   static async getMySightings(userId: string, userToken: string) {
     const authClient = createAuthenticatedClient(userToken);
     const { data, error } = await authClient

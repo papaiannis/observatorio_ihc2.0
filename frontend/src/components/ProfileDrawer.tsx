@@ -426,13 +426,12 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
-              const isValidated = item.status === 'validated';
-              const CardWrapper = isValidated ? View : TouchableOpacity;
               return (
-                <CardWrapper
+                <TouchableOpacity
                   style={styles.sightingCard}
                   activeOpacity={0.75}
-                  onPress={isValidated ? undefined : () => {
+                  onPress={() => {
+                    onClose();
                     onNavigate?.('tracking', item);
                   }}
                 >
@@ -452,10 +451,8 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
                       </Text>
                     </View>
                   </View>
-                  {!isValidated && (
-                    <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-                  )}
-                </CardWrapper>
+                  <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+                </TouchableOpacity>
               );
             }}
           />

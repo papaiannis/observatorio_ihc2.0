@@ -112,6 +112,19 @@ export const appealSighting = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+export const getSightingById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = req.user;
+    if (!user || !user.token) throw new AppError('No autenticado', 401);
+
+    const { id } = req.params;
+    const sighting = await SightingService.getSightingById(id as string, user.id, user.token);
+    res.json({ sighting });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getMySightings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = req.user;

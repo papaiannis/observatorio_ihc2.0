@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { 
-  createSighting, 
-  getPendingSightings, 
-  validateSighting, 
-  appealSighting, 
-  getMySightings, 
+import {
+  createSighting,
+  getPendingSightings,
+  validateSighting,
+  appealSighting,
+  getMySightings,
   getSightingsFeed,
+  getSightingById,
   deleteSighting
 } from '../../controllers/sighting.controller.js';
 import { authMiddleware, optionalAuth } from '../middlewares/auth.middleware.js';
@@ -22,6 +23,9 @@ router.get('/my', authMiddleware, getMySightings);
 
 // Avistamientos pendientes (solo especialistas, validado en controlador)
 router.get('/pending', authMiddleware, getPendingSightings);
+
+// Detalle de un avistamiento propio (para la pantalla de seguimiento/tracking)
+router.get('/:id', authMiddleware, getSightingById);
 
 // Crear avistamiento
 router.post('/', authMiddleware, upload.single('photo'), createSighting);
