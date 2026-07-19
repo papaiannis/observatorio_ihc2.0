@@ -35,6 +35,12 @@
             "imageWidth": 76
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir a Observatorio IHC acceder a tu cámara para escanear especies."
+        }
       ]
     ],
     "experiments": {
