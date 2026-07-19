@@ -124,6 +124,17 @@ export default function ObservatorioScreen() {
     }
   }, [activeTab]);
 
+  const handleTabPress = (tab: TabType) => {
+    // Resetear cualquier pantalla de detalle abierta
+    setSelectedProject(null);
+    setSelectedSighting(null);
+    setTrackingSighting(null);
+    setShowCuraduria(false);
+    
+    // Cambiar a la pestaña seleccionada
+    setActiveTab(tab);
+  };
+
   if (!fontsLoaded) return null;
 
   // ── Abrir con timing ease-out (275ms) ─────────────────────
@@ -281,6 +292,12 @@ export default function ObservatorioScreen() {
               isSubscribed={true}
               onSubscribedChange={() => {}}
             />
+          ) : selectedSighting ? (
+            <SightingDetailScreen
+              sightingId={selectedSighting.id}
+              initialSighting={selectedSighting}
+              onBack={() => setSelectedSighting(null)}
+            />
           ) : (
             <ScrollView
               ref={scrollRef}
@@ -301,7 +318,7 @@ export default function ObservatorioScreen() {
         {/* ── FOOTER ── */}
         <Footer
           activeTab={activeTab === 'crear' ? prevTab : activeTab}
-          onTabPress={setActiveTab}
+          onTabPress={handleTabPress}
           isGuest={isGuest}
         />
       </Animated.View>

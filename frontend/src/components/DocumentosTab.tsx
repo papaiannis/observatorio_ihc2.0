@@ -47,7 +47,7 @@ interface Investigation {
   title: string;
   description: string;
   status: 'active' | 'inactive' | 'archived';
-  cover_url?: string;       // si el backend expone una imagen del proyecto
+  cover_url?: string;
   start_date: string;
   end_date?: string;
   contributors?: Contributor[];
@@ -59,14 +59,13 @@ export default function DocumentosTab({
   isGuest = false,
 }: {
   onProjectPress?: (project: Investigation) => void;
-  /** true cuando el usuario navega sin sesión */
   isGuest?: boolean;
 }) {
-  const insets = useSafeAreaInsets();
   const [projects, setProjects] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [likedProjects, setLikedProjects] = useState<Record<string, boolean>>({});
   const scrollX = useRef(new Animated.Value(0)).current;
 
   /** Guard: muestra alert de login para invitados */
@@ -90,20 +89,28 @@ export default function DocumentosTab({
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      // La API puede devolver array directo o { investigations: [] }
       const list: Investigation[] = Array.isArray(data) ? data : (data.investigations ?? []);
       setProjects(list);
-    } catch {
-      // fallo silencioso — el estado vacío lo maneja la UI
+    } catch (err) {
+      console.warn('Error fetching active projects:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
-  const onRefresh = () => { setRefreshing(true); fetchProjects(); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchProjects();
+  };
+
+  const toggleLike = (projectId: string) => {
+    setLikedProjects((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
+  };
 
   // ── Renderizado de cada tarjeta de proyecto ────────────────
   const renderCard = (item: Investigation, index: number) => {
@@ -119,81 +126,79 @@ export default function DocumentosTab({
       extrapolate: 'clamp',
     });
 
-    // Contribuyentes simulados mientras el backend no los expone directamente
-    const contributors: Contributor[] = item.contributors ?? [];
+    const isLiked = !!likedProjects[item.id];
+    const category = item.methods ? item.methods.split(' ')[0] : 'Ciencia';
+
+    const daysLeft = item.end_date
+      ? Math.max(0, Math.floor((new Date(item.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : 0;
 
     return (
       <TouchableOpacity
         key={item.id}
-        activeOpacity={0.9}
+        activeOpacity={0.95}
         onPress={() => handleProjectPress(item)}
       >
         <Animated.View
           style={[styles.card, { transform: [{ scale }] }]}
         >
-          {/* Imagen de fondo */}
+          {/* Imagen de fondo del proyecto */}
           {item.cover_url ? (
             <Image source={{ uri: item.cover_url }} style={styles.cardImage} resizeMode="cover" />
           ) : (
             <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-              <Ionicons name="leaf-outline" size={48} color={C.sage} />
+              <Ionicons name="leaf" size={64} color="rgba(158,179,109,0.3)" />
             </View>
           )}
 
-          {/* Gradiente inferior oscuro para legibilidad */}
+          {/* Gradiente inferior oscuro */}
           <View style={styles.cardOverlay} />
 
-          {/* Contenido superpuesto en la tarjeta */}
-          <View style={styles.cardContent}>
-            {/* Estado del proyecto */}
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, item.status === 'active' ? styles.dotActive : styles.dotInactive]} />
-              <Text style={styles.statusText}>
-                {item.status === 'active' ? 'Activo' : item.status === 'archived' ? 'Archivado' : 'Inactivo'}
-              </Text>
-            </View>
+          {/* Botón de Like superior derecho (translúcido) */}
+          <TouchableOpacity
+            style={styles.topLikeBtn}
+            onPress={() => toggleLike(item.id)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isLiked ? "heart" : "heart-outline"}
+              size={20}
+              color={isLiked ? "#E57373" : C.white}
+            />
+          </TouchableOpacity>
 
-            {/* Nombre del proyecto */}
+          {/* Contenido de la Tarjeta alineado a la izquierda */}
+          <View style={styles.cardContent}>
+            {/* Categoría / País (Indonesia en mockup) */}
+            <Text style={styles.cardCategory}>{category}</Text>
+
+            {/* Título (Bali en mockup) */}
             <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
 
-            {/* Avatares de contribuyentes */}
-            {contributors.length > 0 && (
-              <View style={styles.contributorsRow}>
-                {contributors.slice(0, 4).map((c, i) => (
-                  <View key={i} style={[styles.contributorAvatar, { marginLeft: i > 0 ? -10 : 0 }]}>
-                    {c.avatar_url ? (
-                      <Image source={{ uri: c.avatar_url }} style={styles.avatarImg} />
-                    ) : (
-                      <View style={styles.avatarFallback}>
-                        <Text style={styles.avatarInitial}>
-                          {c.username.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
-                {contributors.length > 4 && (
-                  <View style={[styles.contributorAvatar, styles.avatarMore, { marginLeft: -10 }]}>
-                    <Text style={styles.avatarMoreText}>+{contributors.length - 4}</Text>
-                  </View>
-                )}
-                <Text style={styles.contributorsLabel}>
-                  {contributors.length === 1 ? '1 contribuyente' : `${contributors.length} contribuyentes`}
-                </Text>
+            {/* Fila con días restantes y estado */}
+            <View style={styles.ratingRow}>
+              <View style={styles.ratingBadge}>
+                <Ionicons name="time-outline" size={12} color={C.white} />
+                <Text style={styles.ratingText}>-{daysLeft} dias</Text>
               </View>
-            )}
+              <Text style={styles.reviewsText}>
+                {item.status === 'active' ? '● Activo' : '○ Inactivo'}
+              </Text>
+            </View>
           </View>
 
-          {/* Botón Explorar */}
-          <View style={styles.exploreBtn}>
-            <Text style={styles.exploreBtnText}>Explorar →</Text>
+          {/* Cápsula inferior de "Explorar" (See More en mockup) */}
+          <View style={styles.exploreCapsule}>
+            <Text style={styles.exploreCapsuleText}>Explorar</Text>
+            <View style={styles.arrowCircle}>
+              <Ionicons name="chevron-forward" size={18} color={C.earth} />
+            </View>
           </View>
         </Animated.View>
       </TouchableOpacity>
     );
   };
 
-  // ── Indicadores de paginación ──────────────────────────────
   const renderDots = () => (
     <View style={styles.dotsRow}>
       {projects.map((_, i) => {
@@ -225,11 +230,12 @@ export default function DocumentosTab({
       {loading ? (
         <ProyectosCarouselSkeleton />
       ) : projects.length === 0 ? (
-        // Estado vacío
-        <View style={styles.centered} />
+        <View style={styles.centered}>
+          <Ionicons name="folder-open-outline" size={48} color={C.gray} style={{ marginBottom: 12 }} />
+          <Text style={styles.emptyText}>No hay proyectos activos en este momento</Text>
+        </View>
       ) : (
         <>
-          {/* Carrusel con scroll horizontal nativo */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -252,7 +258,6 @@ export default function DocumentosTab({
             {projects.map((item, index) => renderCard(item, index))}
           </ScrollView>
 
-          {/* Dots de paginación */}
           {projects.length > 1 && renderDots()}
         </>
       )}
@@ -266,11 +271,11 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
   },
 
-  // ── Título ──────────────────────────────────────────────
+  // Título
   titleRow: {
     paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 16,
+    paddingTop: 24,
+    paddingBottom: 12,
     alignItems: 'center',
   },
   screenTitle: {
@@ -279,35 +284,40 @@ const styles = StyleSheet.create({
     color: C.forest,
   },
 
-  // ── Centrado genérico ────────────────────────────────────
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 100,
   },
+  emptyText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: C.gray,
+    textAlign: 'center',
+  },
 
-  // ── Carrusel ────────────────────────────────────────────
+  // Carrusel
   carouselContent: {
     paddingHorizontal: (width - CARD_WIDTH) / 2 - CARD_MARGIN,
     paddingVertical: 10,
     alignItems: 'center',
   },
 
-  // ── Tarjeta ─────────────────────────────────────────────
+  // Tarjeta (Estilo Mockup)
   card: {
     width: CARD_WIDTH,
-    height: width * 1.1,       // Proporción vertical dominante, como en el mockup
-    borderRadius: 28,
+    height: width * 1.05,
+    borderRadius: 32,
     marginHorizontal: CARD_MARGIN,
     overflow: 'hidden',
-    backgroundColor: C.forest,
-    // Sombra
+    position: 'relative',
+    backgroundColor: '#E0E0E0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 15,
+    elevation: 8,
   },
   cardImage: {
     ...StyleSheet.absoluteFillObject,
@@ -315,133 +325,123 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   cardImagePlaceholder: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#E8F3EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
-    background: undefined,
-    backgroundColor: 'transparent',
-    // Gradiente simulado con capas — parte inferior oscura
-    borderRadius: 28,
-    // En RN no hay LinearGradient nativo sin librería; usamos un View con gradiente táctil:
+    backgroundColor: 'rgba(0,0,0,0.4)', // Degradado uniforme para legibilidad del texto
   },
 
-  // ── Contenido sobre la imagen ────────────────────────────
+  // Botón Like superior derecho (translúcido)
+  topLikeBtn: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  // Contenido de la Tarjeta
   cardContent: {
     position: 'absolute',
-    bottom: 80,               // Arriba del botón Explorar
+    bottom: 90,
     left: 20,
     right: 20,
-    gap: 10,
+    gap: 4,
+    zIndex: 5,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 6,
-    marginBottom: 4,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  dotActive: { backgroundColor: C.sage },
-  dotInactive: { backgroundColor: '#A09D9A' },
-  statusText: {
+  cardCategory: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
-    color: C.white,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
+    textTransform: 'capitalize',
   },
   cardTitle: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 22,
+    fontSize: 20,
     color: C.white,
-    lineHeight: 28,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    lineHeight: 25,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 3,
   },
 
-  // ── Contribuyentes ───────────────────────────────────────
-  contributorsRow: {
+  // Rating e indicadores
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    gap: 8,
+    marginTop: 4,
   },
-  contributorAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: C.white,
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarFallback: {
-    flex: 1,
-    backgroundColor: C.sage,
+  ratingBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 4,
   },
-  avatarInitial: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: C.white,
-  },
-  avatarMore: {
-    backgroundColor: C.earth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarMoreText: {
+  ratingText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 10,
     color: C.white,
   },
-  contributorsLabel: {
+  reviewsText: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
-    marginLeft: 10,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 
-  // ── Botón Explorar ───────────────────────────────────────
-  exploreBtn: {
+  // Cápsula de Explorar (See More en mockup)
+  exploreCapsule: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: C.earth,
-    borderRadius: 24,
-    paddingVertical: 16,
+    bottom: 18,
+    left: 18,
+    right: 18,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    flexDirection: 'row',
     alignItems: 'center',
-    // Sombra táctil
-    shadowColor: C.earth,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    justifyContent: 'space-between',
+    paddingLeft: 20,
+    paddingRight: 5,
+    zIndex: 5,
   },
-  exploreBtnText: {
+  exploreCapsuleText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 17,
+    fontSize: 14,
     color: C.white,
-    letterSpacing: 0.3,
+  },
+  arrowCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
 
-  // ── Dots de paginación ───────────────────────────────────
+  // Dots
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     gap: 6,
   },
   dot: {

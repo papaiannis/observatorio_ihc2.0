@@ -9,7 +9,7 @@ import {
   getInvestigationContributions
 } from '../../controllers/investigation.controller.js';
 import { subscribe, unsubscribe, mySubscriptions } from '../../controllers/subscription.controller.js';
-import { authMiddleware } from '../middlewares/auth.middleware.js';
+import { authMiddleware, optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
@@ -23,9 +23,9 @@ router.get('/my', authMiddleware, getMyInvestigations);
 router.get('/my-subscriptions', authMiddleware, mySubscriptions);
 
 // Investigaciones base
-router.get('/active', authMiddleware, getActiveInvestigations);
-router.get('/:id', authMiddleware, getInvestigationById);
-router.get('/:id/contributions', authMiddleware, getInvestigationContributions);
+router.get('/active', optionalAuth, getActiveInvestigations);
+router.get('/:id', optionalAuth, getInvestigationById);
+router.get('/:id/contributions', optionalAuth, getInvestigationContributions);
 
 // Actualizar y eliminar investigación (PATCH y DELETE /:id)
 router.patch('/:id', authMiddleware, updateInvestigation);
