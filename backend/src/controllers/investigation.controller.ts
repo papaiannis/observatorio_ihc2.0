@@ -105,29 +105,21 @@ export const deleteInvestigation = async (req: Request, res: Response, next: Nex
 export const getInvestigationContributions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user;
-    if (!user || !user.token) throw new AppError('No autorizado', 401);
-
     const { id } = req.params;
     const { status, limit, offset } = req.query;
 
     const inv = await InvestigationService.getInvestigationById(id as string);
     if (!inv) throw new AppError('Investigación no encontrada', 404);
 
-    // Permitir al creador ver todas las contribuciones. 
-    // Podría también permitirse a un Admin o Especialista según las reglas del negocio, 
-    // por ahora limitamos al creador como se solicita en el plan.
-    if (inv.created_by !== user.id) {
-      throw new AppError('No autorizado para ver estas contribuciones', 403);
-    }
+    const queryParams: { status?: string; limit?: number; offset?: number } = {};
+    if (status) queryParams.status = status as string;
+    if (limit) queryParams.limit = parseInt(limit as string, 10);
+    if (offset) queryParams.offset = parseInt(offset as string, 10);
 
     const result = await InvestigationService.getContributionsByInvestigation(
       id as string,
-      user.token,
-      {
-        status: status as string,
-        limit: limit ? parseInt(limit as string, 10) : undefined,
-        offset: offset ? parseInt(offset as string, 10) : undefined
-      }
+      user?.token,
+      queryParams
     );
     res.json(result);
   } catch (error) {

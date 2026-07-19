@@ -5,7 +5,8 @@ import {
   validateSighting, 
   appealSighting, 
   getMySightings, 
-  getSightingsFeed 
+  getSightingsFeed,
+  deleteSighting
 } from '../../controllers/sighting.controller.js';
 import { authMiddleware, optionalAuth } from '../middlewares/auth.middleware.js';
 import multer from 'multer';
@@ -30,5 +31,8 @@ router.patch('/:id/validate', authMiddleware, validateSighting);
 
 // Apelar avistamiento
 router.patch('/:id/appeal', authMiddleware, appealSighting);
+
+// Eliminar avistamiento
+router.delete('/:id', authMiddleware, deleteSighting);
 
 export default router;

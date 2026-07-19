@@ -85,7 +85,7 @@ export const validateSighting = async (req: Request, res: Response, next: NextFu
 
     const { validated_species_id } = parseResult.data;
     const sighting = await SightingService.validateSighting(
-      id,
+      id as string,
       user.token,
       validated_species_id
     );
@@ -105,7 +105,7 @@ export const appealSighting = async (req: Request, res: Response, next: NextFunc
     const parseResult = appealSchema.safeParse(req.body);
     const notes = parseResult.success ? parseResult.data.notes : undefined;
 
-    const sighting = await SightingService.appealSighting(id, user.token, notes);
+    const sighting = await SightingService.appealSighting(id as string, user.token, notes);
     res.json({ message: 'Avistamiento en revisión', sighting });
   } catch (error) {
     next(error);
@@ -130,6 +130,19 @@ export const getSightingsFeed = async (req: Request, res: Response, next: NextFu
     // user.token puede no existir si la ruta usa optionalAuth
     const sightings = await SightingService.getSightingsFeed(user?.token);
     res.json({ count: sightings?.length ?? 0, sightings });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteSighting = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = req.user;
+    if (!user || !user.token) throw new AppError('No autenticado', 401);
+
+    const { id } = req.params;
+    const result = await SightingService.deleteSighting(id as string, user.id, user.token);
+    res.json(result);
   } catch (error) {
     next(error);
   }

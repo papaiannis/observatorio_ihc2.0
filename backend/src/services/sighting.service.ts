@@ -111,7 +111,7 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        profiles:user_id(username, avatar_url)
+        profiles!sightings_user_id_fkey (username, avatar_url)
       `)
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
@@ -181,8 +181,8 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        profiles:user_id(username, avatar_url),
-        species:validated_species_id(scientific_name, common_name)
+        profiles!sightings_user_id_fkey (username, avatar_url),
+        species!validated_species_id (scientific_name, common_name)
       `)
       .order('created_at', { ascending: false });
       
@@ -198,5 +198,46 @@ export class SightingService {
       }));
     }
     return data;
+  }
+
+  static async deleteSighting(sightingId: string, userId: string, userToken: string) {
+    const authClient = createAuthenticatedClient(userToken);
+    
+    // Primero, verificamos que el avistamiento pertenezca al usuario 
+    // (o confiar en las políticas RLS si están bien configuradas)
+    const { data: sighting, error: fetchErr } = await authClient
+      .from('sightings')
+      .select('user_id, photo_url')
+      .eq('id', sightingId)
+      .single();
+
+    if (fetchErr || !sighting) {
+      throw new AppError('Avistamiento no encontrado', 404);
+    }
+
+    if (sighting.user_id !== userId) {
+      // Alternativamente, aquí se podría comprobar si el usuario es Admin o Especialista
+      throw new AppError('No tienes permiso para eliminar este avistamiento', 403);
+    }
+
+    // (Opcional) Eliminar la foto del Storage
+    // Extraer el path del URL (esto es básico, depende del formato exacto de publicUrl)
+    // const pathRegex = /observaciones-media\/(.+)$/;
+    // const match = sighting.photo_url.match(pathRegex);
+    // if (match && match[1]) {
+    //   await authClient.storage.from('observaciones-media').remove([match[1]]);
+    // }
+
+    // Eliminar el registro en BD
+    const { error: deleteErr } = await authClient
+      .from('sightings')
+      .delete()
+      .eq('id', sightingId);
+
+    if (deleteErr) {
+      throw new AppError(`Error al eliminar: ${deleteErr.message}`, 500);
+    }
+    
+    return { success: true, message: 'Avistamiento eliminado' };
   }
 }

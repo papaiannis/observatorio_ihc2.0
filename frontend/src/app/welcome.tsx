@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { authStore } from '../utils/authStore';
 
 export default function WelcomeScreen() {
-  const handleLogout = () => {
-    // Aquí se limpiaría el SecureStore en el futuro.
+  const handleLogout = async () => {
+    // Limpia token de memoria y almacenamiento persistente antes de navegar
+    await authStore.clearSession();
     router.replace('/');
   };
 

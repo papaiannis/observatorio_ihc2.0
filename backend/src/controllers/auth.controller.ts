@@ -29,13 +29,23 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ success: false, error: error.message });
     }
 
-    // Payload mínimo y optimizado para la app móvil
+    // Obtener perfil completo del usuario (role, username, avatar)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, role, avatar_url')
+      .eq('id', data.user!.id)
+      .single();
+
+    // Payload completo para la app móvil
     return res.status(200).json({
       success: true,
-      token: data.session?.access_token, // Este JWT lo guardará el móvil en su Secure Storage
+      token: data.session?.access_token,
       user: {
         id: data.user?.id,
         email: data.user?.email,
+        username: profile?.username ?? null,
+        role: profile?.role ?? 'entusiasta',
+        avatar_url: profile?.avatar_url ?? null,
       },
     });
 
