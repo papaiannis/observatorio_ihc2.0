@@ -53,8 +53,6 @@ const C = {
   sage: '#9EB36D',
   purple: '#7B5EA7',
   purpleLight: '#EEE8F8',
-  red: '#EF5350',
-  redLight: '#FFEBEE',
   border: 'rgba(74,63,53,0.12)',
   gray: '#A09D9A',
   lightText: 'rgba(74,63,53,0.55)',
@@ -73,6 +71,8 @@ interface Contribution {
   survey_answers?: Record<string, string>;
   contribution_status: 'pending' | 'validated' | 'rejected' | 'in_review';
   profiles?: { username: string; avatar_url?: string };
+  /** Tabla de origen: determina el endpoint y los campos soportados por el backend */
+  _source: 'contribution' | 'sighting';
 }
 
 interface Species {
@@ -146,7 +146,11 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
 
       if (res.ok) {
         const data = await res.json();
-        setContributions(data.contributions ?? []);
+        const normalized: Contribution[] = (data.contributions ?? []).map((c: any) => ({
+          ...c,
+          _source: 'contribution',
+        }));
+        setContributions(normalized);
       } else {
         // Fallback: /sightings/pending si contributions no existe aún
         res = await fetch(`${API_URL}/api/v1/sightings/pending`, {
@@ -157,6 +161,7 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
           const normalized: Contribution[] = (data.sightings ?? []).map((s: any) => ({
             ...s,
             contribution_status: s.status,
+            _source: 'sighting',
           }));
           setContributions(normalized);
         }
@@ -214,86 +219,48 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
 
   // ── Validar aporte ────────────────────────────────────────────────────────
   /**
-   * Envía PATCH /api/v1/contributions/:id/validate con:
-   * { expert_rating, expert_comment?, species_id? }
-   * Actualiza la `reputation` del entusiasta vía trigger del backend.
+   * Contribuciones: PATCH /contributions/:id/validate { validated_species_id, expert_comment?, expert_rating? }
+   * Avistamientos independientes: PATCH /sightings/:id/validate { validated_species_id }
+   * (el backend de sightings no admite comentario ni calificación de experto)
    */
   const handleValidate = async () => {
     if (!selected) return;
-    if (rating === 0) {
-      Alert.alert('Calificación requerida', 'Selecciona al menos 1 estrella antes de validar.');
+    if (!selectedSpecies) {
+      Alert.alert('Especie requerida', 'Busca y selecciona la especie identificada antes de validar.');
       return;
     }
+
+    const isContribution = selected._source !== 'sighting';
+    const endpointBase = isContribution ? 'contributions' : 'sightings';
 
     setSubmitting(true);
     try {
       const { token } = await authStore.getSession();
-      const body: Record<string, unknown> = {
-        expert_rating: rating,
-        expert_comment: comment.trim() || undefined,
-      };
-      if (selectedSpecies) body.species_id = selectedSpecies.id;
+      const body: Record<string, unknown> = { validated_species_id: selectedSpecies.id };
+      if (isContribution) {
+        if (comment.trim()) body.expert_comment = comment.trim();
+        if (rating > 0) body.expert_rating = rating;
+      }
 
-      const res = await fetch(`${API_URL}/api/v1/contributions/${selected.id}/validate`, {
+      const res = await fetch(`${API_URL}/api/v1/${endpointBase}/${selected.id}/validate`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (res.ok) {
-        Alert.alert('✅ Validado', 'El aporte fue validado y el entusiasta fue notificado.');
+        Alert.alert('✅ Validado', 'El aporte fue validado y el autor fue notificado.');
         setContributions((prev) => prev.filter((c) => c.id !== selected.id));
         setView('list');
       } else {
         const err = await res.json().catch(() => ({}));
-        Alert.alert('Error', (err as any).message ?? 'No se pudo validar el aporte.');
+        Alert.alert('Error', (err as any).detail ?? 'No se pudo validar el aporte.');
       }
     } catch {
       Alert.alert('Error de red', 'Verifica tu conexión e intenta nuevamente.');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // ── Rechazar aporte ────────────────────────────────────────────────────────
-  const handleReject = () => {
-    if (!selected) return;
-    if (!comment.trim()) {
-      Alert.alert('Comentario requerido', 'Explica brevemente por qué se rechaza este aporte.');
-      return;
-    }
-
-    Alert.alert('Confirmar rechazo', '¿Estás seguro de rechazar este aporte?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Rechazar',
-        style: 'destructive',
-        onPress: async () => {
-          setSubmitting(true);
-          try {
-            const { token } = await authStore.getSession();
-            const res = await fetch(`${API_URL}/api/v1/contributions/${selected.id}/reject`, {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ expert_comment: comment.trim() }),
-            });
-
-            if (res.ok) {
-              Alert.alert('Rechazado', 'El aporte fue rechazado y el usuario fue notificado.');
-              setContributions((prev) => prev.filter((c) => c.id !== selected.id));
-              setView('list');
-            } else {
-              const err = await res.json().catch(() => ({}));
-              Alert.alert('Error', (err as any).message ?? 'No se pudo rechazar el aporte.');
-            }
-          } catch {
-            Alert.alert('Error de red', 'Verifica tu conexión e intenta nuevamente.');
-          } finally {
-            setSubmitting(false);
-          }
-        },
-      },
-    ]);
   };
 
   if (!fontsLoaded) return null;
@@ -379,6 +346,7 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
   // ── VISTA: Detalle + formulario de validación ─────────────────────────────
   const renderDetail = () => {
     if (!selected) return null;
+    const isContribution = selected._source !== 'sighting';
     const dateStr = new Date(selected.observed_at).toLocaleDateString('es-VE', {
       day: '2-digit', month: 'long', year: 'numeric',
     });
@@ -494,71 +462,59 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
             )}
           </View>
 
-          {/* Clic 3: Calificación de estrellas 1-5 */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Calidad del Aporte</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => setRating(star)}
-                  style={styles.starBtn}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={star <= rating ? 'star' : 'star-outline'}
-                    size={36}
-                    color={star <= rating ? C.yellow : C.gray}
-                  />
-                </TouchableOpacity>
-              ))}
+          {/* Clic 3: Calificación de estrellas 1-5 (solo contribuciones a investigación) */}
+          {isContribution && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Calidad del Aporte</Text>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => setRating(star)}
+                    style={styles.starBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={star <= rating ? 'star' : 'star-outline'}
+                      size={36}
+                      color={star <= rating ? C.yellow : C.gray}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.ratingLabel}>
+                {rating === 0 ? 'Sin calificar' :
+                 rating === 1 ? 'Insuficiente' :
+                 rating === 2 ? 'Regular' :
+                 rating === 3 ? 'Bueno' :
+                 rating === 4 ? 'Muy bueno' : 'Excelente'}
+              </Text>
             </View>
-            <Text style={styles.ratingLabel}>
-              {rating === 0 ? 'Sin calificar' :
-               rating === 1 ? 'Insuficiente' :
-               rating === 2 ? 'Regular' :
-               rating === 3 ? 'Bueno' :
-               rating === 4 ? 'Muy bueno' : 'Excelente'}
-            </Text>
-          </View>
+          )}
 
-          {/* Comentario del especialista */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Comentario del Especialista</Text>
-            <TextInput
-              style={styles.commentInput}
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Observaciones, correcciones o motivo de rechazo..."
-              placeholderTextColor={C.lightText}
-              multiline
-              maxLength={500}
-            />
-            <Text style={styles.charCount}>{comment.length}/500</Text>
-          </View>
+          {/* Comentario del especialista (solo contribuciones a investigación) */}
+          {isContribution && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Comentario del Especialista</Text>
+              <TextInput
+                style={styles.commentInput}
+                value={comment}
+                onChangeText={setComment}
+                placeholder="Observaciones o correcciones sobre la identificación..."
+                placeholderTextColor={C.lightText}
+                multiline
+                maxLength={1000}
+              />
+              <Text style={styles.charCount}>{comment.length}/1000</Text>
+            </View>
+          )}
 
-          {/* Clic 4: Botones de acción */}
+          {/* Clic 4: Validar */}
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.rejectBtn, submitting && { opacity: 0.6 }]}
-              onPress={handleReject}
-              disabled={submitting}
-              activeOpacity={0.8}
-            >
-              {submitting ? (
-                <ActivityIndicator color={C.red} />
-              ) : (
-                <>
-                  <Ionicons name="close-circle-outline" size={20} color={C.red} />
-                  <Text style={styles.rejectBtnText}>Rechazar</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.validateBtn, submitting && { opacity: 0.6 }]}
+              style={[styles.validateBtn, (!selectedSpecies || submitting) && { opacity: 0.5 }]}
               onPress={handleValidate}
-              disabled={submitting}
+              disabled={!selectedSpecies || submitting}
               activeOpacity={0.8}
             >
               {submitting ? (
@@ -878,23 +834,6 @@ const styles = StyleSheet.create({
     gap: 12,
     marginHorizontal: 16,
     marginTop: 24,
-  },
-  rejectBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 16,
-    paddingVertical: 14,
-    backgroundColor: '#FFEBEE',
-    borderWidth: 1.5,
-    borderColor: C.red,
-  },
-  rejectBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 15,
-    color: C.red,
   },
   validateBtn: {
     flex: 1,

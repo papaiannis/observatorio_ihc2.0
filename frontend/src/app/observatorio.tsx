@@ -342,7 +342,15 @@ export default function ObservatorioScreen() {
         </Animated.View>
       )}
 
-
+      {/* ── CAPA 4: HOJA FLUIDA DEL DETALLE DE AVISTAMIENTO (SLIDE-IN DESDE DERECHA) ── */}
+      {selectedSighting && (
+        <SightingDetailScreen
+          sightingId={selectedSighting.id}
+          initialSighting={selectedSighting}
+          onBack={() => setSelectedSighting(null)}
+          userRole={userRole}
+        />
+      )}
 
       {/* ── CAPA 5: PANEL DE CURADURÍA (SOLO ESPECIALISTAS) ── */}
       {showCuraduria && isEspecialista && (
