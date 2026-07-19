@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { useLocalSearchParams } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { useSession } from '../utils/authStore';
+import { registerForPushNotificationsAsync } from '../utils/pushNotificationService';
 
 // Componentes Reutilizables de Estructura
 import Header from '../components/Header';
@@ -70,6 +72,8 @@ export default function ObservatorioScreen() {
   const [cameraMounted, setCameraMounted] = useState(false);
   const [selectedSighting, setSelectedSighting] = useState<any | null>(null);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
+  const [prefilledProjectId, setPrefilledProjectId] = useState<string | undefined>(undefined);
+  const [prefilledSurveyAnswers, setPrefilledSurveyAnswers] = useState<string | undefined>(undefined);
   const { openCamera } = useLocalSearchParams<{ openCamera?: string }>();
 
   // Si viene del onboarding con la orden de subir avistamiento, abrimos la cámara
@@ -82,6 +86,29 @@ export default function ObservatorioScreen() {
       }
     }
   }, [openCamera, isGuest]);
+
+  // Registrar push token y escuchar clics en notificaciones cuando el usuario está autenticado
+  useEffect(() => {
+    if (!isGuest) {
+      registerForPushNotificationsAsync();
+    }
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as any;
+      if (data?.sightingId) {
+        setTrackingSighting({
+          id: data.sightingId,
+          status: 'validated',
+          observed_at: new Date().toISOString(),
+          preliminary_species: 'Avistamiento',
+        });
+      }
+    });
+
+    return () => {
+      responseListener.remove();
+    };
+  }, [isGuest]);
 
   // Animaciones
   const anim = useRef(new Animated.Value(0)).current; // Drawer slide
@@ -209,6 +236,8 @@ export default function ObservatorioScreen() {
       useNativeDriver: true,
     }).start(() => {
       setCameraMounted(false);
+      setPrefilledProjectId(undefined);
+      setPrefilledSurveyAnswers(undefined);
       setActiveTab(prevTab);
     });
   };
@@ -291,6 +320,14 @@ export default function ObservatorioScreen() {
               onBack={() => setSelectedProject(null)}
               isSubscribed={true}
               onSubscribedChange={() => {}}
+              userRole={userRole}
+              currentUserId={user?.id}
+              onOpenUploadForm={(projectId, answers) => {
+                setPrefilledProjectId(projectId);
+                setPrefilledSurveyAnswers(answers ? JSON.stringify(answers) : undefined);
+                setSelectedProject(null);
+                setActiveTab('crear');
+              }}
             />
           ) : selectedSighting ? (
             <SightingDetailScreen
@@ -338,6 +375,8 @@ export default function ObservatorioScreen() {
             onClose={handleCloseCamera}
             openGallery={showDraftsOnCrear}
             onGalleryOpened={() => setShowDraftsOnCrear(false)}
+            prefilledProjectId={prefilledProjectId}
+            prefilledSurveyAnswers={prefilledSurveyAnswers}
           />
         </Animated.View>
       )}

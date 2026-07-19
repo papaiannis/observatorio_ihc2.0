@@ -18,6 +18,7 @@ const C = {
   cardBg: '#FFFFFF',
   textColor: '#473C33',
   sage: '#9EB36D',
+  sageBg: 'rgba(158,179,109,0.15)',
   gray: '#A09D9A',
   border: '#E8E8E8',
   white: '#FFFFFF',

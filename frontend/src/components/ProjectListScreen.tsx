@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
 import { ProjectListSkeleton } from './Skeleton';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -37,6 +37,8 @@ export interface Investigation {
   cover_url?: string;
   status: string;
   methods?: string;
+  tools_url?: string;
+  created_by?: string;
 }
 
 interface ProjectListScreenProps {

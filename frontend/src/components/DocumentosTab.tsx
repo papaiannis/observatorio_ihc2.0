@@ -24,7 +24,7 @@ const CARD_WIDTH = width * 0.78;
 const CARD_MARGIN = 12;
 const SNAP_INTERVAL = CARD_WIDTH + CARD_MARGIN * 2;
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -46,12 +46,16 @@ interface Investigation {
   id: string;
   title: string;
   description: string;
-  status: 'active' | 'inactive' | 'archived';
+  status: 'active' | 'inactive' | 'archived' | string;
   cover_url?: string;
   start_date: string;
   end_date?: string;
   contributors?: Contributor[];
   subscriber_count?: number;
+  methods?: string;
+  tools_url?: string;
+  created_by?: string;
+  survey_questions?: any[];
 }
 
 export default function DocumentosTab({

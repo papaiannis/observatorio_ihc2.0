@@ -9,6 +9,9 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
@@ -16,7 +19,7 @@ import type { Investigation } from './ProjectListScreen';
 import { ProjectDetailSkeleton } from './Skeleton';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -34,6 +37,9 @@ interface ProjectDetailScreenProps {
   isSubscribed: boolean;
   onSubscribedChange: (id: string, joined: boolean) => void;
   isGuest?: boolean;
+  onOpenUploadForm?: (projectId: string, answers?: Record<number, string>) => void;
+  userRole?: string;
+  currentUserId?: string;
 }
 
 export default function ProjectDetailScreen({
@@ -42,6 +48,9 @@ export default function ProjectDetailScreen({
   isSubscribed,
   onSubscribedChange,
   isGuest = false,
+  onOpenUploadForm,
+  userRole,
+  currentUserId,
 }: ProjectDetailScreenProps) {
   const [detail, setDetail] = useState<Investigation>(project);
   const [loading, setLoading] = useState(true);
@@ -51,6 +60,19 @@ export default function ProjectDetailScreen({
   const [liked, setLiked] = useState(false);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [surveysExpanded, setSurveysExpanded] = useState(false);
+  const [submittingAnswers, setSubmittingAnswers] = useState(false);
+
+  // Estados para modal de edición del Especialista (Funcionalidad 5 y 6)
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editToolsUrl, setEditToolsUrl] = useState('');
+  const [editQuestions, setEditQuestions] = useState<any[]>([]);
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [newQuestionOptions, setNewQuestionOptions] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const isEspecialista = userRole?.toLowerCase() === 'especialista' || detail.created_by === currentUserId;
 
   const daysActive = Math.max(
     0,
@@ -74,6 +96,10 @@ export default function ProjectDetailScreen({
         if (res.ok) {
           const data = await res.json();
           setDetail(data);
+          setEditTitle(data.title || '');
+          setEditDesc(data.description || '');
+          setEditToolsUrl(data.tools_url || '');
+          setEditQuestions(Array.isArray(data.survey_questions) ? data.survey_questions : []);
         }
 
         // 2. Obtener contribuciones (avistamientos) del proyecto
@@ -247,17 +273,17 @@ export default function ProjectDetailScreen({
           </View>
         </View>
 
-        {/* ── ENCUESTAS EXPANDIBLES ── */}
-        {questions.length > 0 && (
+        {/* ── ENCUESTAS EXPANDIBLES Y GOOGLE FORMS ── */}
+        {(questions.length > 0 || detail.tools_url || isEspecialista) && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.expandableHeader}
               onPress={() => setSurveysExpanded(!surveysExpanded)}
               activeOpacity={0.7}
             >
-              <Text style={styles.sectionTitle}>Encuestas</Text>
+              <Text style={styles.sectionTitle}>Encuestas y Formulario</Text>
               <View style={styles.expandableHeaderRight}>
-                <Text style={styles.sectionCount}>({questions.length})</Text>
+                {questions.length > 0 && <Text style={styles.sectionCount}>({questions.length})</Text>}
                 <Ionicons
                   name={surveysExpanded ? "chevron-up" : "chevron-down"}
                   size={20}
@@ -268,6 +294,20 @@ export default function ProjectDetailScreen({
 
             {surveysExpanded && (
               <View style={styles.expandedContent}>
+                {/* Enlace de Google Forms (Funcionalidad 6) */}
+                {detail.tools_url ? (
+                  <TouchableOpacity
+                    style={styles.googleFormBtn}
+                    onPress={() => Linking.openURL(detail.tools_url!)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="document-text" size={20} color={C.white} />
+                    <Text style={styles.googleFormBtnText}>Responder en Google Forms</Text>
+                    <Ionicons name="open-outline" size={16} color={C.white} style={{ marginLeft: 'auto' }} />
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* Preguntas locales de encuesta (Funcionalidad 4) */}
                 {questions.map((q: any, idx: number) => (
                   <View key={idx} style={styles.questionCard}>
                     <Text style={styles.questionText}>
@@ -290,13 +330,102 @@ export default function ProjectDetailScreen({
                       </View>
                     ) : (
                       <View style={styles.freeAnswerBox}>
-                        <Text style={styles.freeAnswerPlaceholder}>
-                          {answers[idx] ?? 'Respuesta libre...'}
-                        </Text>
+                        <TextInput
+                          style={styles.freeAnswerInput}
+                          placeholder="Escribe tu respuesta aquí..."
+                          placeholderTextColor="#999"
+                          value={answers[idx] || ''}
+                          onChangeText={(text) => setAnswers((prev) => ({ ...prev, [idx]: text }))}
+                        />
                       </View>
                     )}
                   </View>
                 ))}
+
+                {/* Botones de acción para enviar respuestas (Funcionalidad 4 y 3) */}
+                {questions.length > 0 && (
+                  <View style={styles.surveyActionContainer}>
+                    <TouchableOpacity
+                      style={styles.surveyUploadBtn}
+                      onPress={() => {
+                        if (onOpenUploadForm) {
+                          onOpenUploadForm(project.id, answers);
+                        } else {
+                          Alert.alert('Información', 'Toma una foto para adjuntar estas respuestas al proyecto.');
+                        }
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="camera" size={18} color={C.white} />
+                      <Text style={styles.surveyActionText}>Subir Avistamiento con Respuestas</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.surveySaveBtn, submittingAnswers && { opacity: 0.6 }]}
+                      disabled={submittingAnswers}
+                      onPress={async () => {
+                        if (isGuest) {
+                          Alert.alert('Inicia sesión', 'Crea una cuenta para enviar respuestas.');
+                          return;
+                        }
+                        if (Object.keys(answers).length === 0) {
+                          Alert.alert('Atención', 'Responde al menos una pregunta antes de guardar.');
+                          return;
+                        }
+                        setSubmittingAnswers(true);
+                        try {
+                          const { token } = await authStore.getSession();
+                          const res = await fetch(`${API_URL}/api/v1/investigations/${project.id}/survey-answers`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ answers }),
+                          });
+                          if (res.ok) {
+                            Alert.alert('¡Respuestas Registradas!', 'Tus respuestas han sido enviadas y vinculadas al proyecto.');
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            Alert.alert('Error', err.message ?? 'No se pudo registrar.');
+                          }
+                        } catch {
+                          Alert.alert('Error', 'Verifica tu conexión a internet.');
+                        } finally {
+                          setSubmittingAnswers(false);
+                        }
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      {submittingAnswers ? (
+                        <ActivityIndicator color={C.textColor} size="small" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle-outline" size={18} color={C.textColor} />
+                          <Text style={[styles.surveyActionText, { color: C.textColor }]}>Enviar Solo Respuestas</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Botón exclusivo de Especialistas para modificar preguntas/forms (Funcionalidad 5 y 6) */}
+                {isEspecialista && (
+                  <TouchableOpacity
+                    style={styles.specialistEditBtn}
+                    onPress={() => {
+                      setEditTitle(detail.title || '');
+                      setEditDesc(detail.description || '');
+                      setEditToolsUrl(detail.tools_url || '');
+                      setEditQuestions(Array.isArray(detail.survey_questions) ? [...detail.survey_questions] : []);
+                      setShowEditModal(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="create-outline" size={18} color={C.white} />
+                    <Text style={styles.specialistEditBtnText}>Editar Preguntas y Google Forms (Especialista)</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -313,16 +442,154 @@ export default function ProjectDetailScreen({
       ) : (
         <TouchableOpacity
           style={styles.floatingRoundBtn}
-          onPress={handleJoin}
+          onPress={() => {
+            if (isSubscribed && onOpenUploadForm) {
+              onOpenUploadForm(project.id, answers);
+            } else {
+              handleJoin();
+            }
+          }}
           activeOpacity={0.85}
         >
           <Ionicons
-            name={isSubscribed ? "checkmark-sharp" : "add-sharp"}
+            name={isSubscribed ? "camera" : "add-sharp"}
             size={26}
             color={C.white}
           />
         </TouchableOpacity>
       )}
+
+      {/* ── MODAL DE CURADURÍA/EDICIÓN PARA EL ESPECIALISTA ── */}
+      <Modal visible={showEditModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Proyecto (Especialista)</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={24} color={C.textColor} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Título del Proyecto</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Título"
+              />
+
+              <Text style={styles.inputLabel}>Descripción</Text>
+              <TextInput
+                style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                placeholder="Descripción"
+                multiline
+              />
+
+              <Text style={styles.inputLabel}>Link de Google Forms (Encuesta Externa)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editToolsUrl}
+                onChangeText={setEditToolsUrl}
+                placeholder="https://docs.google.com/forms/d/..."
+                autoCapitalize="none"
+              />
+
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Preguntas Locales Activas ({editQuestions.length})</Text>
+              {editQuestions.map((q, i) => (
+                <View key={i} style={styles.editQuestionRow}>
+                  <Text style={styles.editQuestionText} numberOfLines={2}>
+                    {i + 1}. {typeof q === 'string' ? q : q.question ?? q.text}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setEditQuestions(editQuestions.filter((_, idx) => idx !== i))}
+                    style={styles.deleteQBtn}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#E57373" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <View style={styles.newQuestionBox}>
+                <Text style={styles.subLabel}>Añadir Nueva Pregunta</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={newQuestionText}
+                  onChangeText={setNewQuestionText}
+                  placeholder="Ej: ¿Qué comportamiento observó?"
+                />
+                <TextInput
+                  style={[styles.textInput, { marginTop: 8 }]}
+                  value={newQuestionOptions}
+                  onChangeText={setNewQuestionOptions}
+                  placeholder="Opciones separadas por coma (opcional)"
+                />
+                <TouchableOpacity
+                  style={styles.addQBtn}
+                  onPress={() => {
+                    if (!newQuestionText.trim()) return;
+                    const opts = newQuestionOptions.split(',').map(o => o.trim()).filter(Boolean);
+                    const newQ = opts.length > 0
+                      ? { question: newQuestionText.trim(), options: opts }
+                      : { question: newQuestionText.trim() };
+                    setEditQuestions([...editQuestions, newQ]);
+                    setNewQuestionText('');
+                    setNewQuestionOptions('');
+                  }}
+                >
+                  <Ionicons name="add-circle" size={18} color={C.white} />
+                  <Text style={styles.addQText}>Agregar Pregunta</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.saveModalBtn, savingEdit && { opacity: 0.6 }]}
+              disabled={savingEdit}
+              onPress={async () => {
+                setSavingEdit(true);
+                try {
+                  const { token } = await authStore.getSession();
+                  const res = await fetch(`${API_URL}/api/v1/investigations/${project.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                      title: editTitle.trim(),
+                      description: editDesc.trim(),
+                      tools_url: editToolsUrl.trim() || null,
+                      survey_questions: editQuestions,
+                    }),
+                  });
+                  if (res.ok) {
+                    const updated = await res.json();
+                    setDetail(updated);
+                    setShowEditModal(false);
+                    Alert.alert('¡Actualizado!', 'Las preguntas y datos del proyecto fueron guardados.');
+                  } else {
+                    const err = await res.json().catch(() => ({}));
+                    Alert.alert('Error', err.message ?? 'No se pudieron guardar los cambios.');
+                  }
+                } catch {
+                  Alert.alert('Error', 'Verifica tu conexión a internet.');
+                } finally {
+                  setSavingEdit(false);
+                }
+              }}
+            >
+              {savingEdit ? (
+                <ActivityIndicator color={C.white} size="small" />
+              ) : (
+                <Text style={styles.saveModalText}>Guardar Cambios</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -579,21 +846,20 @@ const styles = StyleSheet.create({
   freeAnswerBox: {
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
-  freeAnswerPlaceholder: {
+  freeAnswerInput: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
     color: C.textColor,
-    opacity: 0.5,
-    fontStyle: 'italic',
+    paddingVertical: 6,
   },
 
   // ── Botón Flotante libre (Sin recuadro, sobre el footer) ──
   floatingRoundBtn: {
     position: 'absolute',
     right: 24,
-    bottom: 85, // Posición firme por encima del menú del Footer (65px)
+    bottom: 85,
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -606,5 +872,175 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
     zIndex: 100,
+  },
+
+  // ── Nuevos estilos de botones y modales para encuestas / forms / edición ──
+  googleFormBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#34A853',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    gap: 8,
+    marginBottom: 8,
+  },
+  googleFormBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.white,
+  },
+  surveyActionContainer: {
+    gap: 10,
+    marginTop: 12,
+  },
+  surveyUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.sage,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+  },
+  surveySaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: C.textColor,
+    paddingVertical: 11,
+    borderRadius: 14,
+    gap: 8,
+  },
+  surveyActionText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.white,
+  },
+  specialistEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.textColor,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginTop: 16,
+    gap: 8,
+  },
+  specialistEditBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: C.white,
+  },
+
+  // ── Modal Especialista ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: C.cardBg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: 'PlayfairDisplay_700Bold',
+    fontSize: 18,
+    color: C.textColor,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalScroll: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.textColor,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  textInput: {
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: C.textColor,
+  },
+  editQuestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.bg,
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  editQuestionText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: C.textColor,
+    flex: 1,
+  },
+  deleteQBtn: {
+    paddingLeft: 10,
+  },
+  newQuestionBox: {
+    marginTop: 16,
+    padding: 14,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  subLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.textColor,
+    marginBottom: 8,
+  },
+  addQBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.sage,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    gap: 6,
+  },
+  addQText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: C.white,
+  },
+  saveModalBtn: {
+    backgroundColor: C.textColor,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  saveModalText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: C.white,
   },
 });

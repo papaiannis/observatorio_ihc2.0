@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
 import { ObservatorioSkeleton, DOME_CARD_WIDTH, DOME_CARD_HEIGHT } from './Skeleton';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',

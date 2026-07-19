@@ -39,9 +39,17 @@ interface CrearTabProps {
   onClose?: () => void;
   openGallery?: boolean;
   onGalleryOpened?: () => void;
+  prefilledProjectId?: string;
+  prefilledSurveyAnswers?: string;
 }
 
-export default function CrearTab({ onClose, openGallery, onGalleryOpened }: CrearTabProps) {
+export default function CrearTab({
+  onClose,
+  openGallery,
+  onGalleryOpened,
+  prefilledProjectId,
+  prefilledSurveyAnswers,
+}: CrearTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('camera');
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<'on' | 'off'>('off');
@@ -143,7 +151,7 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ['images'] as any,
       allowsMultipleSelection: true,
       quality: 0.85,
     });
@@ -231,9 +239,10 @@ export default function CrearTab({ onClose, openGallery, onGalleryOpened }: Crea
       <SightingFormScreen
         photoUri={selectedPhoto.uri}
         photoTimestamp={selectedPhoto.timestamp}
+        prefilledProjectId={prefilledProjectId}
+        prefilledSurveyAnswers={prefilledSurveyAnswers}
         onBack={() => setViewMode('gallery')}
         onPublished={async () => {
-          // Eliminar la foto de la galería local tras publicar
           const updated = await photoStore.removePhoto(selectedPhoto.uri);
           setPhotos(updated);
           setSelectedPhoto(null);

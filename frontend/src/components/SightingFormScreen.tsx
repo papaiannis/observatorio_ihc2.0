@@ -22,7 +22,7 @@ import { WebView } from 'react-native-webview';
 import { authStore as auth } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 // ── Paleta Ajustada al Diseño ─────────────────────────
 const C = {
@@ -41,6 +41,8 @@ interface SightingFormProps {
   photoTimestamp: number;
   onBack: () => void;
   onPublished: () => void;
+  prefilledProjectId?: string;
+  prefilledSurveyAnswers?: string;
 }
 
 export default function SightingFormScreen({
@@ -48,6 +50,8 @@ export default function SightingFormScreen({
   photoTimestamp,
   onBack,
   onPublished,
+  prefilledProjectId,
+  prefilledSurveyAnswers,
 }: SightingFormProps) {
   const insets = useSafeAreaInsets();
 
@@ -95,7 +99,12 @@ export default function SightingFormScreen({
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
 
-  // Cargar rol de usuario
+  // ── Estado para vincular proyecto existente (Funcionalidad 3) ──
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(prefilledProjectId || null);
+  const [availableProjects, setAvailableProjects] = useState<any[]>([]);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+
+  // Cargar rol y proyectos disponibles al montar
   useEffect(() => {
     const load = async () => {
       const { user, token: t } = await auth.getSession();
@@ -106,6 +115,30 @@ export default function SightingFormScreen({
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/api/v1/investigations/my-subscriptions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableProjects(data.subscriptions || []);
+        } else {
+          const resActive = await fetch(`${API_URL}/api/v1/investigations/active`);
+          if (resActive.ok) {
+            const dataActive = await resActive.json();
+            setAvailableProjects(Array.isArray(dataActive) ? dataActive : []);
+          }
+        }
+      } catch (err) {
+        console.warn('Error cargando proyectos en formulario:', err);
+      }
+    };
+    if (token) loadProjects();
+  }, [token]);
 
   // ── Obtener GPS automáticamente ───────────────────────────
   useEffect(() => {
@@ -169,6 +202,8 @@ export default function SightingFormScreen({
         return;
       }
 
+      let targetInvestigationId = selectedProjectId;
+
       // 1. Si se eligió crear proyecto, lo creamos primero
       if (createProject) {
         const today = new Date().toISOString().split('T')[0];
@@ -193,13 +228,14 @@ export default function SightingFormScreen({
           const err = await resProj.json().catch(() => ({}));
           throw new Error(err.message || 'No se pudo crear el proyecto para este avistamiento.');
         }
+        const createdProj = await resProj.json();
+        targetInvestigationId = createdProj.id;
       }
 
-      // 2. Continuar con la publicación normal del avistamiento
+      // 2. Continuar con la publicación del avistamiento (o contribución a proyecto)
       const fileName = photoUri.split('/').pop() ?? 'photo.jpg';
       const fileType = fileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
       
-      // Validación estricta de tipo MIME y tamaño (Max 5MB)
       if (fileType !== 'image/png' && fileType !== 'image/jpeg') {
         throw new Error('Tipo de archivo no permitido. Solo JPG y PNG.');
       }
@@ -211,7 +247,6 @@ export default function SightingFormScreen({
 
       const formData = new FormData();
       
-      // Corrección para React Native fetch FormData Network request failed
       const normalizedUri = Platform.OS === 'ios' ? photoUri.replace('file://', '') : photoUri;
       formData.append('photo', JSON.parse(JSON.stringify({ 
         uri: normalizedUri, 
@@ -235,7 +270,16 @@ export default function SightingFormScreen({
         formData.append('metadata_edited', 'true');
       }
 
-      const res = await fetch(`${API_URL}/api/v1/sightings`, {
+      let endpointUrl = `${API_URL}/api/v1/sightings`;
+      if (targetInvestigationId) {
+        endpointUrl = `${API_URL}/api/v1/contributions`;
+        formData.append('investigation_id', targetInvestigationId);
+        if (prefilledSurveyAnswers) {
+          formData.append('survey_answers', prefilledSurveyAnswers);
+        }
+      }
+
+      const res = await fetch(endpointUrl, {
         method: 'POST',
         headers: { 
           Accept: 'application/json',
@@ -251,7 +295,9 @@ export default function SightingFormScreen({
 
       const successMsg = createProject 
         ? 'El proyecto y tu avistamiento fueron creados exitosamente.'
-        : 'Tu avistamiento fue enviado para revisión.';
+        : targetInvestigationId
+          ? 'Tu avistamiento fue aportado al proyecto científico.'
+          : 'Tu avistamiento fue enviado para revisión.';
 
       Alert.alert('¡Publicado!', successMsg, [
         { text: 'OK', onPress: onPublished },
@@ -475,6 +521,64 @@ export default function SightingFormScreen({
                     multiline
                     maxLength={300}
                   />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── Vincular a proyecto existente (Para todos los usuarios, Funcionalidad 3) ── */}
+          {!createProject && (
+            <View style={styles.projectLinkBox}>
+              <Text style={styles.projectLinkTitle}>Vincular a Proyecto Científico</Text>
+              <TouchableOpacity
+                style={styles.projectLinkSelector}
+                onPress={() => setShowProjectPicker(!showProjectPicker)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="folder-open-outline" size={18} color={C.earth} />
+                <Text style={styles.projectLinkSelectedText} numberOfLines={1}>
+                  {selectedProjectId
+                    ? availableProjects.find(p => (p.investigation_id || p.id || p.investigation?.id) === selectedProjectId)?.investigation?.title ||
+                      availableProjects.find(p => (p.investigation_id || p.id || p.investigation?.id) === selectedProjectId)?.title ||
+                      'Proyecto Seleccionado'
+                    : 'Ninguno (Avistamiento general)'}
+                </Text>
+                <Ionicons name={showProjectPicker ? "chevron-up" : "chevron-down"} size={18} color={C.gray} />
+              </TouchableOpacity>
+
+              {showProjectPicker && (
+                <View style={styles.projectPickerContainer}>
+                  <TouchableOpacity
+                    style={[styles.projectPickerRow, !selectedProjectId && styles.projectPickerRowActive]}
+                    onPress={() => {
+                      setSelectedProjectId(null);
+                      setShowProjectPicker(false);
+                    }}
+                  >
+                    <Text style={styles.projectPickerRowText}>Ninguno (Avistamiento general)</Text>
+                  </TouchableOpacity>
+
+                  {availableProjects.map((proj, i) => {
+                    const pId = proj.investigation_id || proj.id || proj.investigation?.id;
+                    const pTitle = proj.investigation?.title || proj.title || `Proyecto #${i + 1}`;
+                    if (!pId) return null;
+                    return (
+                      <TouchableOpacity
+                        key={pId}
+                        style={[styles.projectPickerRow, selectedProjectId === pId && styles.projectPickerRowActive]}
+                        onPress={() => {
+                          setSelectedProjectId(pId);
+                          setShowProjectPicker(false);
+                        }}
+                      >
+                        <Text style={styles.projectPickerRowText} numberOfLines={1}>{pTitle}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {availableProjects.length === 0 && (
+                    <Text style={styles.noProjectsHint}>No estás participando en proyectos activos.</Text>
+                  )}
                 </View>
               )}
             </View>
@@ -723,5 +827,66 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#E2E2E2',
+  },
+
+  // Vincular a proyecto
+  projectLinkBox: {
+    width: '100%',
+    backgroundColor: C.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  projectLinkTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.earth,
+    marginBottom: 8,
+  },
+  projectLinkSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F7F7',
+    borderWidth: 1,
+    borderColor: '#E2E2E2',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  projectLinkSelectedText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: C.earth,
+    flex: 1,
+  },
+  projectPickerContainer: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#EBEBEB',
+    paddingTop: 8,
+    gap: 4,
+  },
+  projectPickerRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  projectPickerRowActive: {
+    backgroundColor: '#FCECDA',
+  },
+  projectPickerRowText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12.5,
+    color: C.earth,
+  },
+  noProjectsHint: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: C.gray,
+    fontStyle: 'italic',
+    paddingVertical: 4,
   },
 });

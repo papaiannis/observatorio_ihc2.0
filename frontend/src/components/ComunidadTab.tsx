@@ -15,7 +15,7 @@ import { authStore } from '../utils/authStore';
 import { ComunidadSkeleton, DOME_CARD_WIDTH, DOME_CARD_HEIGHT } from './Skeleton';
 import AppealSheet, { AppealTarget } from './AppealSheet';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -111,7 +111,7 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
 
   const toggleFilter = (filter: FilterType) => {
     if (filter === 'Todas') { setTempFilters(['Todas']); return; }
-    let next = tempFilters.filter((f) => f !== 'Todas');
+    let next: FilterType[] = tempFilters.filter((f) => f !== 'Todas');
     if (next.includes(filter)) {
       next = next.filter((f) => f !== filter);
       if (next.length === 0) next = ['Todas'];

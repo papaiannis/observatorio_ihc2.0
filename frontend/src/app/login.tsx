@@ -21,7 +21,7 @@ import { authStore } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ihcobservatorio2-202625.onrender.com';
 
 // ── Paleta Ajustada ─────────────────────────────────────
 const C = {

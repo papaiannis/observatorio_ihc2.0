@@ -21,7 +21,7 @@ import { authStore } from '../utils/authStore';
 import { photoStore, StoredPhoto } from '../utils/photoStore';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihc-2-0.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   drawerBg: '#FFEDDA',
@@ -57,6 +57,7 @@ interface Sighting {
   preliminary_species?: string;
   status: string;
   observed_at: string;
+  species?: { scientific_name: string; common_name?: string } | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -64,6 +65,19 @@ const STATUS_LABELS: Record<string, string> = {
   validated: 'Validado',
   rejected: 'Rechazado',
   in_review: 'En revisión',
+};
+
+const getStatusBadgeStyle = (status: string) => {
+  switch (status) {
+    case 'validated':
+      return { bg: '#E8F5E9', text: '#4CAF50' };
+    case 'rejected':
+      return { bg: '#FFEBEE', text: '#E53935' };
+    case 'in_review':
+      return { bg: '#E8EAF6', text: '#3F51B5' };
+    default:
+      return { bg: '#FFF8DB', text: '#E6B800' };
+  }
 };
 
 export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, userRole: userRoleProp }: ProfileDrawerProps) {
@@ -112,6 +126,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
   const [createdProjects, setCreatedProjects] = useState<any[]>([]);
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
+  const [projectToolsUrl, setProjectToolsUrl] = useState('');
   const [creatingProject, setCreatingProject] = useState(false);
 
   // ── Cargar mis avistamientos ────────────────────────────
@@ -176,6 +191,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
         body: JSON.stringify({
           title: projectTitle.trim(),
           description: projectDescription.trim(),
+          tools_url: projectToolsUrl.trim() || undefined,
           start_date: today,
           end_date: nextYear,
           status: 'active',
@@ -186,6 +202,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
         Alert.alert('¡Proyecto Creado!', 'Tu proyecto científico ha sido creado con éxito.');
         setProjectTitle('');
         setProjectDescription('');
+        setProjectToolsUrl('');
         setView('home');
       } else {
         const err = await res.json().catch(() => ({}));
@@ -426,6 +443,8 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
+              const badge = getStatusBadgeStyle(item.status);
+              const speciesLabel = item.species?.scientific_name || item.species?.common_name || item.preliminary_species || 'Especie por identificar';
               return (
                 <TouchableOpacity
                   style={styles.sightingCard}
@@ -438,15 +457,15 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
                   <Image source={{ uri: item.photo_url }} style={styles.sightingThumb} resizeMode="cover" />
                   <View style={styles.sightingInfo}>
                     <Text style={styles.sightingSpecies} numberOfLines={1}>
-                      {item.preliminary_species || 'Especie desconocida'}
+                      {speciesLabel}
                     </Text>
                     <Text style={styles.sightingDate}>
                       {new Date(item.observed_at).toLocaleDateString('es-VE', {
                         day: '2-digit', month: 'short', year: 'numeric',
                       })}
                     </Text>
-                    <View style={styles.sightingStatusPill}>
-                      <Text style={styles.sightingStatusText}>
+                    <View style={[styles.sightingStatusPill, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.sightingStatusText, { color: badge.text }]}>
                         {STATUS_LABELS[item.status] ?? item.status}
                       </Text>
                     </View>
@@ -623,6 +642,18 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             />
           </View>
 
+          <View style={styles.editFieldGroup}>
+            <Text style={styles.editLabel}>Enlace a Google Forms (Opcional)</Text>
+            <TextInput
+              style={styles.editBioInput}
+              value={projectToolsUrl}
+              onChangeText={setProjectToolsUrl}
+              placeholder="https://docs.google.com/forms/d/..."
+              placeholderTextColor={C.lightText}
+              autoCapitalize="none"
+            />
+          </View>
+
           <TouchableOpacity
             style={[styles.saveBtn, creatingProject && { opacity: 0.6 }]}
             onPress={handleCreateProject}
@@ -652,7 +683,11 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
       >
         {/* ── Foto de Perfil ── */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={pickAvatar} activeOpacity={0.85} style={styles.avatarWrap}>
+          <TouchableOpacity
+            onPress={(!isGuest && token) ? pickAvatar : undefined}
+            activeOpacity={(!isGuest && token) ? 0.85 : 1}
+            style={styles.avatarWrap}
+          >
             {avatarUri ? (
               <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
             ) : (
@@ -660,43 +695,52 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
                 <Ionicons name="person" size={42} color={C.earth} />
               </View>
             )}
-            {/* Ícono de cámara superpuesto */}
-            <View style={styles.avatarCameraBtn}>
-              <Ionicons name="camera" size={14} color={C.white} />
-            </View>
+            {/* Ícono de cámara superpuesto solo si tiene sesión */}
+            {(!isGuest && token) && (
+              <View style={styles.avatarCameraBtn}>
+                <Ionicons name="camera" size={14} color={C.white} />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
         {/* ── Nombre y Bio ── */}
         <View style={styles.infoSection}>
-          <Text style={styles.greeting}>Bienvenido,</Text>
-          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.greeting}>{(!isGuest && token) ? 'Bienvenido,' : 'Modo Explorador'}</Text>
+          <Text style={styles.userName}>{(!isGuest && token) ? userName : 'Invitado'}</Text>
 
-          {/* Badge de rol — visual distinto para cada tipo */}
-          {userRole.toLowerCase() === 'especialista' ? (
-            <View style={[styles.roleBadge, styles.roleBadgeEspecialista]}>
-              <Ionicons name="star" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
-              <Text style={[styles.roleText, styles.roleTextEspecialista]}>Especialista</Text>
-            </View>
+          {(!isGuest && token) ? (
+            <>
+              {/* Badge de rol — visual distinto para cada tipo */}
+              {userRole.toLowerCase() === 'especialista' ? (
+                <View style={[styles.roleBadge, styles.roleBadgeEspecialista]}>
+                  <Ionicons name="star" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
+                  <Text style={[styles.roleText, styles.roleTextEspecialista]}>Especialista</Text>
+                </View>
+              ) : (
+                <View style={[styles.roleBadge, styles.roleBadgeEntusiasta]}>
+                  <Ionicons name="leaf" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
+                  <Text style={[styles.roleText, styles.roleTextEntusiasta]}>Entusiasta</Text>
+                </View>
+              )}
+              <Text style={styles.bio}>{userBio}</Text>
+            </>
           ) : (
-            <View style={[styles.roleBadge, styles.roleBadgeEntusiasta]}>
-              <Ionicons name="leaf" size={11} color="#FFFFFF" style={{ marginRight: 5 }} />
-              <Text style={[styles.roleText, styles.roleTextEntusiasta]}>Entusiasta</Text>
-            </View>
+            <Text style={styles.bio}>Inicia sesión para subir avistamientos, participar en proyectos y realizar seguimiento.</Text>
           )}
-
-          <Text style={styles.bio}>{userBio}</Text>
         </View>
 
         <View style={styles.divider} />
 
         {/* ── Opciones Generales ── */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('sightings')}>
-            <MaterialCommunityIcons name="binoculars" size={24} color={C.sage} />
-            <Text style={styles.menuLabel}>Mis Avistamientos</Text>
-            <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-          </TouchableOpacity>
+          {(!isGuest && token) && (
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('sightings')}>
+              <MaterialCommunityIcons name="binoculars" size={24} color={C.sage} />
+              <Text style={styles.menuLabel}>Mis Avistamientos</Text>
+              <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('drafts')}>
             <Ionicons name="document-text-outline" size={24} color={C.sage} />
@@ -704,15 +748,17 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             <Ionicons name="chevron-forward" size={18} color={C.lightText} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('edit')}>
-            <Ionicons name="create-outline" size={24} color={C.sage} />
-            <Text style={styles.menuLabel}>Editar Perfil</Text>
-            <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-          </TouchableOpacity>
+          {(!isGuest && token) && (
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('edit')}>
+              <Ionicons name="create-outline" size={24} color={C.sage} />
+              <Text style={styles.menuLabel}>Editar Perfil</Text>
+              <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Opciones de Especialista ── */}
-        {userRole.toLowerCase() === 'especialista' && (
+        {(!isGuest && token && userRole.toLowerCase() === 'especialista') && (
           <>
             <View style={styles.divider} />
             <View style={styles.roleSectionHeader}>
@@ -720,7 +766,6 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
               <Text style={styles.roleSectionTitle}>Opciones de Especialista</Text>
             </View>
             <View style={styles.menuSection}>
-              {/* Panel de Curaduría — acceso exclusivo Especialista */}
               <TouchableOpacity
                 style={styles.menuItem}
                 activeOpacity={0.7}
@@ -750,7 +795,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
         )}
 
         {/* ── Opciones de Entusiasta ── */}
-        {userRole.toLowerCase() !== 'especialista' && (
+        {(!isGuest && token && userRole.toLowerCase() !== 'especialista') && (
           <>
             <View style={styles.divider} />
             <View style={styles.roleSectionHeader}>
@@ -769,21 +814,37 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
 
         <View style={styles.divider} />
 
-        {/* ── Cerrar Sesión ── */}
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          activeOpacity={0.7}
-          onPress={async () => {
-            await authStore.clearSession();
-            onClose();
-            import('expo-router').then(({ router }) => {
-              router.replace('/login');
-            });
-          }}
-        >
-          <Ionicons name="log-out-outline" size={24} color={C.red} />
-          <Text style={styles.logoutText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
+        {/* ── Cerrar Sesión / Iniciar Sesión ── */}
+        {(!isGuest && token) ? (
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            activeOpacity={0.7}
+            onPress={async () => {
+              await authStore.clearSession();
+              onClose();
+              import('expo-router').then(({ router }) => {
+                router.replace('/login');
+              });
+            }}
+          >
+            <Ionicons name="log-out-outline" size={22} color={C.red} />
+            <Text style={styles.logoutText}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              onClose();
+              import('expo-router').then(({ router }) => {
+                router.replace('/login');
+              });
+            }}
+          >
+            <Ionicons name="log-in-outline" size={22} color={C.sage} />
+            <Text style={[styles.logoutText, { color: C.sage }]}>Iniciar Sesión</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
