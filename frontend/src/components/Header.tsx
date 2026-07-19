@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSession } from '../utils/authStore';
 
 const C = {
   sage: '#9EB36D',
@@ -21,6 +22,7 @@ export default function Header({
   onSearchPress,
   onAddPress,
 }: HeaderProps) {
+  const { user } = useSession();
   const handleAvatarPress = onAvatarPress || (() => router.replace('/bienvenida'));
   const insets = useSafeAreaInsets();
 
@@ -32,7 +34,11 @@ export default function Header({
           activeOpacity={0.8}
           onPress={handleAvatarPress}
         >
-          <Ionicons name="person" size={20} color={C.earth} />
+          {user?.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
+          ) : (
+            <Ionicons name="person" size={20} color={C.earth} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -72,6 +78,13 @@ const styles = StyleSheet.create({
     backgroundColor: C.avatarBg,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    resizeMode: 'cover',
   },
   headerRight: {
     flexDirection: 'row',

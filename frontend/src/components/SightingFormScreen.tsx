@@ -19,7 +19,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { WebView } from 'react-native-webview';
-import { authStore as auth } from '../utils/authStore';
+import { authStore as auth, useSession } from '../utils/authStore';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
@@ -54,6 +54,7 @@ export default function SightingFormScreen({
   prefilledSurveyAnswers,
 }: SightingFormProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useSession();
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -120,12 +121,37 @@ export default function SightingFormScreen({
     const loadProjects = async () => {
       if (!token) return;
       try {
+        let subsList: any[] = [];
         const res = await fetch(`${API_URL}/api/v1/investigations/my-subscriptions`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
-          setAvailableProjects(data.subscriptions || []);
+          subsList = data.subscriptions || [];
+        }
+
+        let createdList: any[] = [];
+        if (user?.role?.toLowerCase() === 'especialista') {
+          const resMy = await fetch(`${API_URL}/api/v1/investigations/my`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (resMy.ok) {
+            const dataMy = await resMy.json();
+            createdList = dataMy.investigations || dataMy || [];
+          }
+        }
+
+        const map = new Map();
+        subsList.forEach((p) => map.set(p.id, p));
+        if (user?.role?.toLowerCase() === 'especialista') {
+          createdList.forEach((p) => {
+            if (!map.has(p.id)) map.set(p.id, p);
+          });
+        }
+        const merged = Array.from(map.values());
+
+        if (merged.length > 0) {
+          setAvailableProjects(merged);
         } else {
           const resActive = await fetch(`${API_URL}/api/v1/investigations/active`);
           if (resActive.ok) {
@@ -138,7 +164,7 @@ export default function SightingFormScreen({
       }
     };
     if (token) loadProjects();
-  }, [token]);
+  }, [token, user?.role]);
 
   // ── Obtener GPS automáticamente ───────────────────────────
   useEffect(() => {
@@ -316,7 +342,11 @@ export default function SightingFormScreen({
       {/* ── BARRA SUPERIOR VERDE ── */}
       <View style={[styles.topHeader, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.avatarContainer} activeOpacity={0.8}>
-          <Ionicons name="person" size={20} color={C.earth} />
+          {user?.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22, resizeMode: 'cover' }} />
+          ) : (
+            <Ionicons name="person" size={20} color={C.earth} />
+          )}
         </TouchableOpacity>
 
         <View style={styles.topHeaderRight}>
@@ -434,7 +464,7 @@ export default function SightingFormScreen({
 </script>
 </body></html>`,
                 }}
-                onMessage={(event) => {
+                onMessage={(event: any) => {
                   try {
                     const { lat: la, lng: ln } = JSON.parse(event.nativeEvent.data);
                     setLatitude(la);
@@ -625,6 +655,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.avatarBg,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   topHeaderRight: {
     flexDirection: 'row',

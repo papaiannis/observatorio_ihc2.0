@@ -37,7 +37,7 @@ const C = {
   red: '#E57373',
 };
 
-type DrawerView = 'home' | 'sightings' | 'drafts' | 'edit' | 'projects' | 'create_project';
+type DrawerView = 'home' | 'sightings' | 'drafts' | 'edit' | 'projects' | 'projects_created' | 'create_project';
 
 interface ProfileDrawerProps {
   onClose: () => void;
@@ -103,22 +103,31 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
   const [editBio, setEditBio] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // ── Cargar sesión al montar ────────────────────────────
+  // ── Cargar sesión al montar y suscribirse a cambios ────────
   useEffect(() => {
+    const updateFromUser = (user: any, t: string | null) => {
+      if (!user) return;
+      setUserName(user.nombre || user.username || 'Usuario');
+      const roleFromSession = user.role?.toLowerCase() ?? 'entusiasta';
+      setUserRole(userRoleProp ?? roleFromSession);
+      if (user.avatar_url) setAvatarUri(user.avatar_url);
+      const bioText = user.bio || user.preferencias?.bio || 'Explorador de la naturaleza venezolana 🌿';
+      setUserBio(bioText);
+      setUserId(user.id);
+      if (t !== undefined) setToken(t);
+    };
+
     const load = async () => {
       const { user, token: t } = await authStore.getSession();
-      if (user) {
-        setUserName(user.nombre || user.username || 'Usuario');
-        // Prioriza el rol que viene como prop (ya normalizado) sobre el del storage
-        const roleFromSession = user.role?.toLowerCase() ?? 'entusiasta';
-        setUserRole(userRoleProp ?? roleFromSession);
-        if (user.avatar_url) setAvatarUri(user.avatar_url);
-        setUserId(user.id);
-        setToken(t);
-      }
+      updateFromUser(user, t);
     };
     load();
-  }, []);
+
+    const unsubscribe = authStore._subscribe(({ user, token: t }) => {
+      updateFromUser(user, t);
+    });
+    return unsubscribe;
+  }, [userRoleProp]);
 
   // ── Mis proyectos (subscripciones) ───────────────────
   const [projects, setProjects] = useState<any[]>([]);
@@ -145,28 +154,41 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
     setLoadingSightings(false);
   }, [token]);
 
-  // ── Cargar proyectos donde participo ──────────────────
+  // ── Cargar proyectos donde participo y creados ────────
   const loadProjects = useCallback(async () => {
     if (!token) return;
     setLoadingProjects(true);
     try {
+      let subsList: any[] = [];
       const res = await fetch(`${API_URL}/api/v1/investigations/my-subscriptions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setProjects(data.investigations || []);
+        subsList = data.subscriptions || [];
       }
 
+      let createdList: any[] = [];
       if (userRole.toLowerCase() === 'especialista') {
         const resMy = await fetch(`${API_URL}/api/v1/investigations/my`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (resMy.ok) {
           const data = await resMy.json();
-          setCreatedProjects(data.investigations || data || []);
+          createdList = data.investigations || data || [];
+          setCreatedProjects(createdList);
         }
       }
+
+      // Proyectos a los que pertenece / participa (incluyendo los que creó el especialista)
+      const map = new Map();
+      subsList.forEach((p) => map.set(p.id, p));
+      if (userRole.toLowerCase() === 'especialista') {
+        createdList.forEach((p) => {
+          if (!map.has(p.id)) map.set(p.id, p);
+        });
+      }
+      setProjects(Array.from(map.values()));
     } catch {}
     setLoadingProjects(false);
   }, [token, userRole]);
@@ -221,7 +243,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
     if (v === 'sightings') loadSightings();
     if (v === 'drafts') photoStore.getAll().then(setDrafts);
     if (v === 'edit') setEditBio(userBio);
-    if (v === 'projects') loadProjects();
+    if (v === 'projects' || v === 'projects_created') loadProjects();
     setView(v);
   };
 
@@ -233,7 +255,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'] as any,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -241,11 +263,10 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
     if (result.canceled || !result.assets?.length) return;
     const uri = result.assets[0].uri;
 
-    // Por ahora usamos la URI local como avatar (en producción se subiría a Storage)
     setAvatarUri(uri);
     await authStore.updateUser({ avatar_url: uri });
 
-    // Intentar sincronizar con el backend enviando la imagen con FormData
+    // Sincronizar con el backend enviando la imagen con FormData
     try {
       const formData = new FormData();
       const filename = uri.split('/').pop() || 'avatar.jpg';
@@ -254,14 +275,20 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
 
       formData.append('avatar', { uri, name: filename, type } as any);
 
-      await fetch(`${API_URL}/api/v1/profiles/me`, {
+      const res = await fetch(`${API_URL}/api/v1/profiles/me`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
-          // No establecer Content-Type para FormData, fetch lo generará con el boundary
         },
         body: formData,
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.avatar_url) {
+          setAvatarUri(data.avatar_url);
+          await authStore.updateUser({ avatar_url: data.avatar_url });
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -272,7 +299,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
     if (saving) return;
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/v1/profiles/me`, {
+      const res = await fetch(`${API_URL}/api/v1/profiles/me`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -281,7 +308,8 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
         body: JSON.stringify({ preferencias: { bio: editBio } }),
       });
       setUserBio(editBio);
-      Alert.alert('¡Guardado!', 'Tu perfil fue actualizado.');
+      await authStore.updateUser({ bio: editBio });
+      Alert.alert('¡Guardado!', 'Tu perfil fue actualizado exitosamente.');
       setView('home');
     } catch {
       Alert.alert('Error', 'No se pudo guardar. Intenta de nuevo.');
@@ -305,7 +333,76 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
   };
 
   // ─────────────────────────────────────────────────────────
-  // SUB-VISTA: Mis Proyectos (subscripciones)
+  // SUB-VISTA: Mis Proyectos Creados (Solo Especialistas)
+  // ─────────────────────────────────────────────────────────
+  if (view === 'projects_created') {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={() => setView('home')} style={styles.subBackBtn}>
+            <Ionicons name="arrow-back" size={22} color={C.earth} />
+          </TouchableOpacity>
+          <Text style={styles.subTitle}>Mis Proyectos Creados</Text>
+          <TouchableOpacity
+            onPress={() => setView('create_project')}
+            style={styles.createProjectBtn}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Text style={styles.createProjectBtnText}>Crear</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loadingProjects ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={C.sage} size="large" />
+          </View>
+        ) : createdProjects.length === 0 ? (
+          <View style={styles.centered}>
+            <Ionicons name="flask-outline" size={48} color={C.lightText} style={{ marginBottom: 12 }} />
+            <Text style={styles.emptyText}>Aún no has creado ningún proyecto</Text>
+            <TouchableOpacity
+              style={styles.emptyCreateBtn}
+              onPress={() => setView('create_project')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#7B5EA7" />
+              <Text style={styles.emptyCreateBtnText}>Crear mi primer proyecto</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.sectionHeader}>PROYECTOS CREADOS (MI AUTORÍA)</Text>
+            {createdProjects.map((item: any) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.projectCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  onClose();
+                  onNavigate?.('project', item);
+                }}
+              >
+                <View style={styles.projectIconWrap}>
+                  <Ionicons name="shield-checkmark" size={22} color="#7B5EA7" />
+                </View>
+                <View style={styles.projectInfo}>
+                  <Text style={styles.projectTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.projectStatus}>
+                    {item.status === 'active' ? '● Activo' : '○ Inactivo'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // SUB-VISTA: Proyectos que Sigo / en los que participo
   // ─────────────────────────────────────────────────────────
   if (view === 'projects') {
     return (
@@ -314,101 +411,42 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
           <TouchableOpacity onPress={() => setView('home')} style={styles.subBackBtn}>
             <Ionicons name="arrow-back" size={22} color={C.earth} />
           </TouchableOpacity>
-          <Text style={styles.subTitle}>Mis Proyectos</Text>
-          {userRole.toLowerCase() === 'especialista' && (
-            <TouchableOpacity
-              onPress={() => setView('create_project')}
-              style={styles.createProjectBtn}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text style={styles.createProjectBtnText}>Crear</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={styles.subTitle}>Proyectos que Sigo</Text>
         </View>
 
         {loadingProjects ? (
           <View style={styles.centered}>
             <ActivityIndicator color={C.sage} size="large" />
           </View>
-        ) : projects.length === 0 && createdProjects.length === 0 ? (
+        ) : projects.length === 0 ? (
           <View style={styles.centered}>
-            {userRole.toLowerCase() === 'especialista' ? (
-              <>
-                <Ionicons name="flask-outline" size={48} color={C.lightText} style={{ marginBottom: 12 }} />
-                <Text style={styles.emptyText}>Aún no has creado ningún proyecto</Text>
-                <TouchableOpacity
-                  style={styles.emptyCreateBtn}
-                  onPress={() => setView('create_project')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle-outline" size={18} color="#7B5EA7" />
-                  <Text style={styles.emptyCreateBtnText}>Crear mi primer proyecto</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <Text style={styles.emptyText}>No participas en ningún proyecto aún</Text>
-            )}
+            <Text style={styles.emptyText}>No participas en ningún proyecto aún</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-            {createdProjects.length > 0 && (
-              <>
-                <Text style={styles.sectionHeader}>PROYECTOS CREADOS (MI AUTORÍA)</Text>
-                {createdProjects.map((item: any) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.projectCard}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      onClose();
-                      onNavigate?.('project', item);
-                    }}
-                  >
-                    <View style={styles.projectIconWrap}>
-                      <Ionicons name="shield-checkmark" size={22} color={C.sage} />
-                    </View>
-                    <View style={styles.projectInfo}>
-                      <Text style={styles.projectTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.projectStatus}>
-                        {item.status === 'active' ? '● Activo' : '○ Inactivo'}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-            {projects.length > 0 && (
-              <>
-                <Text style={[styles.sectionHeader, createdProjects.length > 0 && { marginTop: 24 }]}>
-                  PROYECTOS EN LOS QUE PARTICIPO
-                </Text>
-                {projects.map((item: any) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.projectCard}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      onClose();
-                      onNavigate?.('project', item);
-                    }}
-                  >
-                    <View style={styles.projectIconWrap}>
-                      <Ionicons name="leaf-outline" size={22} color={C.sage} />
-                    </View>
-                    <View style={styles.projectInfo}>
-                      <Text style={styles.projectTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.projectStatus}>
-                        {item.status === 'active' ? '● Activo' : '○ Inactivo'}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
+            <Text style={styles.sectionHeader}>PROYECTOS A LOS QUE PERTENEZCO</Text>
+            {projects.map((item: any) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.projectCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  onClose();
+                  onNavigate?.('project', item);
+                }}
+              >
+                <View style={styles.projectIconWrap}>
+                  <Ionicons name="leaf-outline" size={22} color={C.sage} />
+                </View>
+                <View style={styles.projectInfo}>
+                  <Text style={styles.projectTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.projectStatus}>
+                    {item.status === 'active' ? '● Activo' : '○ Inactivo'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         )}
       </View>
@@ -749,6 +787,14 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
           </TouchableOpacity>
 
           {(!isGuest && token) && (
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
+              <Ionicons name="folder-outline" size={24} color={C.sage} />
+              <Text style={styles.menuLabel}>Proyectos que Sigo</Text>
+              <Ionicons name="chevron-forward" size={18} color={C.lightText} />
+            </TouchableOpacity>
+          )}
+
+          {(!isGuest && token) && (
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('edit')}>
               <Ionicons name="create-outline" size={24} color={C.sage} />
               <Text style={styles.menuLabel}>Editar Perfil</Text>
@@ -779,7 +825,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
                 <Ionicons name="chevron-forward" size={18} color={C.lightText} />
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects_created')}>
                 <Ionicons name="flask-outline" size={24} color="#7B5EA7" />
                 <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Mis Proyectos</Text>
                 <Ionicons name="chevron-forward" size={18} color={C.lightText} />
@@ -788,24 +834,6 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
               <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('create_project')}>
                 <Ionicons name="add-circle-outline" size={24} color="#7B5EA7" />
                 <Text style={[styles.menuLabel, styles.menuLabelEspecialista]}>Crear Proyecto</Text>
-                <Ionicons name="chevron-forward" size={18} color={C.lightText} />
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-
-        {/* ── Opciones de Entusiasta ── */}
-        {(!isGuest && token && userRole.toLowerCase() !== 'especialista') && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.roleSectionHeader}>
-              <Ionicons name="leaf" size={13} color="#3A9E6D" />
-              <Text style={[styles.roleSectionTitle, { color: '#3A9E6D' }]}>Opciones de Entusiasta</Text>
-            </View>
-            <View style={styles.menuSection}>
-              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => goTo('projects')}>
-                <Ionicons name="folder-outline" size={24} color="#3A9E6D" />
-                <Text style={[styles.menuLabel, styles.menuLabelEntusiasta]}>Proyectos que Sigo</Text>
                 <Ionicons name="chevron-forward" size={18} color={C.lightText} />
               </TouchableOpacity>
             </View>

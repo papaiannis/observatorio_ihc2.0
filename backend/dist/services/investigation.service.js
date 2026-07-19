@@ -54,6 +54,17 @@ export class InvestigationService {
             console.error('❌ Supabase insert error:', error);
             throw new AppError(`Error al crear la investigación: ${error.message}`, 500);
         }
+        // Suscribir automáticamente al creador a su propia investigación
+        if (data?.id) {
+            try {
+                await authClient
+                    .from('investigation_subscriptions')
+                    .insert({ investigation_id: data.id, user_id: userId });
+            }
+            catch (e) {
+                console.warn('Aviso: no se pudo auto-suscribir al creador:', e);
+            }
+        }
         return data;
     }
     /**

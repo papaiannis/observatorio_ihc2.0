@@ -8,10 +8,15 @@ import {
   Alert,
   ScrollView,
   Image,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSession, authStore } from '../utils/authStore';
 import { router } from 'expo-router';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
 
 const C = {
   bg: '#F6F6F6',
@@ -29,6 +34,12 @@ export default function ConfiguracionTab() {
   const { user } = useSession();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
+
+  // ── Edición de Perfil ──────────────────────────────────
+  const [view, setView] = useState<'settings' | 'editProfile'>('settings');
+  const [editBio, setEditBio] = useState('');
+  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -54,8 +65,152 @@ export default function ConfiguracionTab() {
       Alert.alert('Invitado', 'Inicia sesión para editar tu perfil.');
       return;
     }
-    Alert.alert('Próximamente', 'La edición de perfil estará disponible pronto.');
+    const bioText = user.bio || (user as any).preferencias?.bio || 'Explorador de la naturaleza venezolana 🌿';
+    setEditBio(bioText);
+    setTempAvatar(user.avatar_url || null);
+    setView('editProfile');
   };
+
+  const pickNewAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para cambiar la foto de perfil.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'] as any,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    setTempAvatar(result.assets[0].uri);
+  };
+
+  const saveProfileChanges = async () => {
+    if (savingProfile || !user) return;
+    setSavingProfile(true);
+    try {
+      const { token } = await authStore.getSession();
+
+      let finalAvatarUrl = user.avatar_url;
+      if (tempAvatar && tempAvatar !== user.avatar_url) {
+        const formData = new FormData();
+        const filename = tempAvatar.split('/').pop() || 'avatar.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+        formData.append('avatar', { uri: tempAvatar, name: filename, type } as any);
+
+        const resImg = await fetch(`${API_URL}/api/v1/profiles/me`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (resImg.ok) {
+          const dataImg = await resImg.json();
+          if (dataImg?.avatar_url) finalAvatarUrl = dataImg.avatar_url;
+        } else {
+          finalAvatarUrl = tempAvatar;
+        }
+      }
+
+      const resBio = await fetch(`${API_URL}/api/v1/profiles/me`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ preferencias: { bio: editBio } }),
+      });
+
+      await authStore.updateUser({ avatar_url: finalAvatarUrl, bio: editBio });
+
+      Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado exitosamente.');
+      setView('settings');
+    } catch (err) {
+      Alert.alert('Error', 'No se pudieron guardar los cambios. Verifica tu conexión a internet.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  if (view === 'editProfile') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.titleRow}>
+          <TouchableOpacity onPress={() => setView('settings')} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={C.textColor} />
+          </TouchableOpacity>
+          <Text style={styles.screenTitle}>Editar Perfil</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.editCard}>
+            <View style={styles.avatarEditContainer}>
+              <TouchableOpacity onPress={pickNewAvatar} activeOpacity={0.8} style={styles.avatarEditWrap}>
+                {tempAvatar ? (
+                  <Image source={{ uri: tempAvatar }} style={styles.largeAvatar} />
+                ) : (
+                  <View style={[styles.avatarPlaceholder, { width: 96, height: 96, borderRadius: 48 }]}>
+                    <Ionicons name="person" size={44} color={C.textColor} />
+                  </View>
+                )}
+                <View style={styles.cameraBadge}>
+                  <Ionicons name="camera" size={18} color={C.white} />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.avatarHint}>Toca la imagen para cambiar de foto</Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Nombre de Usuario (Solo lectura)</Text>
+              <View style={[styles.textInput, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>{user?.nombre || user?.username || 'Usuario'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Correo Electrónico</Text>
+              <View style={[styles.textInput, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>{user?.email}</Text>
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Biografía</Text>
+              <TextInput
+                style={[styles.textInput, styles.bioInput]}
+                value={editBio}
+                onChangeText={setEditBio}
+                placeholder="Cuéntanos sobre tu pasión por la naturaleza..."
+                placeholderTextColor={C.gray}
+                multiline
+                maxLength={200}
+              />
+              <Text style={styles.charCounter}>{editBio.length}/200</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveButton, savingProfile && { opacity: 0.6 }]}
+              onPress={saveProfileChanges}
+              disabled={savingProfile}
+              activeOpacity={0.8}
+            >
+              {savingProfile ? (
+                <ActivityIndicator color={C.white} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color={C.white} />
+                  <Text style={styles.saveButtonText}>Guardar Cambios</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -198,7 +353,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    padding: 4,
   },
   screenTitle: {
     fontFamily: 'Poppins_600SemiBold',
@@ -276,6 +436,102 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: C.sage,
     textDecorationLine: 'underline',
+  },
+
+  // Edición de Perfil (estilos)
+  editCard: {
+    backgroundColor: C.cardBg,
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 20,
+  },
+  avatarEditContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  avatarEditWrap: {
+    position: 'relative',
+    marginBottom: 10,
+  },
+  largeAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    resizeMode: 'cover',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.sage,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: C.white,
+  },
+  avatarHint: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: C.gray,
+  },
+  formGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+    color: C.textColor,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: C.textColor,
+    backgroundColor: '#FAFAFA',
+  },
+  readOnlyInput: {
+    backgroundColor: '#F0F0F0',
+    borderColor: '#E0E0E0',
+  },
+  readOnlyText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: '#707070',
+  },
+  bioInput: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  charCounter: {
+    alignSelf: 'flex-end',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: C.gray,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: C.sage,
+    borderRadius: 18,
+    paddingVertical: 16,
+    marginTop: 10,
+  },
+  saveButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15,
+    color: C.white,
   },
 
   // Ajustes
