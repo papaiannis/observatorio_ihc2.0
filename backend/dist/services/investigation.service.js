@@ -35,11 +35,11 @@ export class InvestigationService {
     /**
      * Crea una nueva investigación (solo especialistas)
      */
-    static async createInvestigation(userToken, payload) {
+    static async createInvestigation(userId, userToken, payload) {
         const authClient = createAuthenticatedClient(userToken);
         // Si viene como string WKT y queremos asegurar, o si es un JSON (GeoJSON)
         // Supabase y PostgREST permiten insertar GeoJSON directo en columnas geography/geometry
-        let dataToInsert = { ...payload };
+        let dataToInsert = { ...payload, created_by: userId };
         if (payload.area_geom && typeof payload.area_geom === 'object') {
             // Dejamos el objeto para que supabase-js (postgREST) lo convierta a JSON 
             // y luego la DB lo convierta a GeoJSON si es necesario.
@@ -51,6 +51,7 @@ export class InvestigationService {
             .select('*')
             .single();
         if (error) {
+            console.error('❌ Supabase insert error:', error);
             throw new AppError(`Error al crear la investigación: ${error.message}`, 500);
         }
         return data;
@@ -111,6 +112,36 @@ export class InvestigationService {
             throw new AppError(`Investigación no encontrada o no tienes permisos para eliminarla`, 404);
         }
         return true;
+    }
+    /**
+     * Obtiene las contribuciones de una investigación específica
+     */
+    static async getContributionsByInvestigation(investigationId, userToken, filters) {
+        const client = userToken ? createAuthenticatedClient(userToken) : supabase;
+        let query = client
+            .from('investigation_contributions')
+            .select(`
+        *,
+        profiles:user_id(username, avatar_url),
+        species:validated_species_id(scientific_name, common_name)
+      `, { count: 'exact' })
+            .eq('investigation_id', investigationId)
+            .order('created_at', { ascending: false });
+        if (filters?.status) {
+            query = query.eq('contribution_status', filters.status);
+        }
+        if (filters?.limit) {
+            query = query.limit(filters.limit);
+        }
+        if (filters?.offset) {
+            const limit = filters.limit || 10;
+            query = query.range(filters.offset, filters.offset + limit - 1);
+        }
+        const { data, error, count } = await query;
+        if (error) {
+            throw new AppError(`Error al obtener contribuciones: ${error.message}`, 500);
+        }
+        return { count, contributions: data };
     }
 }
 //# sourceMappingURL=investigation.service.js.map

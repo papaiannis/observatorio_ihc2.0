@@ -2,6 +2,7 @@ import exifr from 'exifr';
 import { supabase, createAuthenticatedClient } from '../infrastructure/supabase.js';
 import { AppError } from '../infrastructure/AppError.js';
 import { env } from '../infrastructure/config.js';
+import { sendPushAndCreateNotification } from './notification.service.js';
 
 interface SightingData {
   preliminary_species?: string | undefined;
@@ -123,10 +124,10 @@ export class SightingService {
   static async validateSighting(sightingId: string, userToken: string, validatedSpeciesId: string) {
     const authClient = createAuthenticatedClient(userToken);
     
-    // Verificar que la especie existe
+    // Verificar que la especie existe y obtener sus nombres para la notificación
     const { data: species, error: spError } = await authClient
       .from('species')
-      .select('id')
+      .select('id, scientific_name, common_name')
       .eq('id', validatedSpeciesId)
       .single();
       
@@ -146,6 +147,17 @@ export class SightingService {
       .single();
       
     if (error) throw new AppError(error.message, 500);
+
+    if (data && data.user_id) {
+      const speciesName = species.scientific_name || species.common_name || data.preliminary_species || 'Especie identificada';
+      await sendPushAndCreateNotification(
+        data.user_id,
+        '¡Tu avistamiento fue validado!',
+        `La comunidad científica validó tu observación como "${speciesName}". ¡Gracias por tu valioso aporte!`,
+        data.id,
+      );
+    }
+
     return data;
   }
 
@@ -160,6 +172,16 @@ export class SightingService {
       .single();
       
     if (error) throw new AppError(error.message, 500);
+
+    if (data && data.user_id) {
+      await sendPushAndCreateNotification(
+        data.user_id,
+        'Apelación en revisión',
+        'Tu apelación ha sido recibida. Un equipo de especialistas revisará nuevamente la identificación de tu avistamiento.',
+        data.id,
+      );
+    }
+
     return data;
   }
 
@@ -220,7 +242,7 @@ export class SightingService {
     const authClient = createAuthenticatedClient(userToken);
     const { data, error } = await authClient
       .from('sightings')
-      .select('*')
+      .select('*, species!validated_species_id (scientific_name, common_name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
       

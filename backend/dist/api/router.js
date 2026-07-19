@@ -10,11 +10,13 @@ import notificationRoutes from './routes/notification.routes.js';
 import commentRoutes from './routes/comment.routes.js';
 import likeRoutes from './routes/like.routes.js';
 import profileRoutes from './routes/profile.routes.js';
+import sightingRoutes from './routes/sighting.routes.js';
 const apiRouter = Router();
 // Semana 1 & 2
 apiRouter.use('/identificacion', identificacionRoutes);
 apiRouter.use('/investigations', investigationRoutes);
 apiRouter.use('/contributions', contributionRoutes);
+apiRouter.use('/sightings', sightingRoutes);
 apiRouter.use('/', authRoutes);
 // Semana 3: Curaduría, Feed, Exportación y Notificaciones
 apiRouter.use('/species', speciesRoutes);
@@ -25,13 +27,5 @@ apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/comments', commentRoutes);
 apiRouter.use('/likes', likeRoutes);
 apiRouter.use('/profiles', profileRoutes);
-// 🔍 Log de diagnóstico temporal para ver rutas registradas en investigaciones
-console.log('--- RUTAS DE INVESTIGACIONES REGISTRADAS ---');
-investigationRoutes.stack.forEach((layer) => {
-    if (layer.route) {
-        console.log(`${Object.keys(layer.route.methods).join(', ').toUpperCase()} /api/v1/investigations${layer.route.path}`);
-    }
-});
-console.log('--------------------------------------------');
 export default apiRouter;
 //# sourceMappingURL=router.js.map

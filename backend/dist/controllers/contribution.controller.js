@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AppError } from '../infrastructure/AppError.js';
 import { ContributionService } from '../services/contribution.service.js';
 import { supabase, createAuthenticatedClient } from '../infrastructure/supabase.js';
+import { sendPushAndCreateNotification } from '../services/notification.service.js';
 // ─── Esquemas de validación ────────────────────────────────────────────────────
 const contributionSchema = z.object({
     investigation_id: z.string().uuid('Debe ser un UUID válido'),
@@ -129,6 +130,9 @@ export const validateContribution = async (req, res, next) => {
             throw new AppError(error.message, 500);
         if (!data)
             throw new AppError('Contribución no encontrada.', 404);
+        if (data.user_id) {
+            await sendPushAndCreateNotification(data.user_id, '¡Tu contribución al proyecto fue validada!', `Un especialista ha validado tu contribución en el proyecto como "${species.scientific_name}". ¡Excelente observación!`, null, data.id);
+        }
         // El trigger trg_contribution_status_change ya creó el log y la notificación en la BD.
         res.json({
             message: `Contribución validada exitosamente como "${species.scientific_name}".`,
@@ -166,12 +170,15 @@ export const appealContribution = async (req, res, next) => {
             updated_at: new Date().toISOString(),
         })
             .eq('id', id)
-            .select('id, contribution_status')
+            .select('id, user_id, contribution_status')
             .maybeSingle();
         if (error)
             throw new AppError(error.message, 500);
         if (!data)
             throw new AppError('Contribución no encontrada.', 404);
+        if (data.user_id) {
+            await sendPushAndCreateNotification(data.user_id, 'Contribución en revisión', 'Tu contribución al proyecto está siendo revisada y debatida por los especialistas del observatorio.', null, data.id);
+        }
         // El trigger trg_contribution_status_change ya creó el log y la notificación.
         res.json({
             message: 'Contribución marcada como "En revisión". El debate de expertos puede comenzar.',

@@ -18,7 +18,7 @@ export declare class InvestigationService {
     /**
      * Crea una nueva investigación (solo especialistas)
      */
-    static createInvestigation(userToken: string, payload: any): Promise<any>;
+    static createInvestigation(userId: string, userToken: string, payload: any): Promise<any>;
     /**
      * Obtiene las investigaciones creadas por el usuario autenticado
      */
@@ -32,5 +32,16 @@ export declare class InvestigationService {
      * RLS asegurará que solo el creador pueda hacerlo.
      */
     static deleteInvestigation(id: string, userToken: string): Promise<boolean>;
+    /**
+     * Obtiene las contribuciones de una investigación específica
+     */
+    static getContributionsByInvestigation(investigationId: string, userToken?: string, filters?: {
+        status?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<{
+        count: number | null;
+        contributions: any[];
+    }>;
 }
 //# sourceMappingURL=investigation.service.d.ts.map

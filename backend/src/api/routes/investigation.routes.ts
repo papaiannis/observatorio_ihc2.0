@@ -6,7 +6,8 @@ import {
   getMyInvestigations,
   updateInvestigation,
   deleteInvestigation,
-  getInvestigationContributions
+  getInvestigationContributions,
+  submitSurveyAnswers
 } from '../../controllers/investigation.controller.js';
 import { subscribe, unsubscribe, mySubscriptions } from '../../controllers/subscription.controller.js';
 import { authMiddleware, optionalAuth } from '../middlewares/auth.middleware.js';
@@ -34,5 +35,9 @@ router.delete('/:id', authMiddleware, deleteInvestigation);
 // Suscribirse / desuscribirse a una investigación específica
 router.post('/:id/subscribe', authMiddleware, subscribe);
 router.delete('/:id/subscribe', authMiddleware, unsubscribe);
+
+// Enviar respuestas de encuesta
+router.post('/:id/survey-answers', authMiddleware, submitSurveyAnswers);
+router.patch('/:id/survey-answers', authMiddleware, submitSurveyAnswers);
 
 export default router;
