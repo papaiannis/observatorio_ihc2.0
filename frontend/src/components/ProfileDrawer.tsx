@@ -136,7 +136,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
   const [createdProjects, setCreatedProjects] = useState<any[]>([]);
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
-  const [projectToolsUrl, setProjectToolsUrl] = useState('');
+  const [projectToolsUrl, setProjectToolsUrl] = useState('https://forms.gle/XR7vbpTYwACYtyvf8');
   const [creatingProject, setCreatingProject] = useState(false);
 
   // ── Cargar mis avistamientos ────────────────────────────
@@ -214,7 +214,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
         body: JSON.stringify({
           title: projectTitle.trim(),
           description: projectDescription.trim(),
-          tools_url: projectToolsUrl.trim() || undefined,
+          tools_url: projectToolsUrl.trim() || 'https://forms.gle/XR7vbpTYwACYtyvf8',
           start_date: today,
           end_date: nextYear,
           status: 'active',
@@ -690,7 +690,7 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
               style={styles.editBioInput}
               value={projectToolsUrl}
               onChangeText={setProjectToolsUrl}
-              placeholder="https://docs.google.com/forms/d/..."
+              placeholder="https://forms.gle/XR7vbpTYwACYtyvf8"
               placeholderTextColor={C.lightText}
               autoCapitalize="none"
             />

@@ -43,6 +43,13 @@ interface ProjectDetailScreenProps {
   currentUserId?: string;
 }
 
+const getGoogleFormUrl = (url?: string | null) => {
+  if (url && (url.includes('forms.gle') || url.includes('docs.google.com/forms'))) {
+    return url;
+  }
+  return 'https://forms.gle/XR7vbpTYwACYtyvf8';
+};
+
 export default function ProjectDetailScreen({
   project,
   onBack,
@@ -99,7 +106,7 @@ export default function ProjectDetailScreen({
           setDetail(data);
           setEditTitle(data.title || '');
           setEditDesc(data.description || '');
-          setEditToolsUrl(data.tools_url || '');
+          setEditToolsUrl(getGoogleFormUrl(data.tools_url));
           setEditQuestions(Array.isArray(data.survey_questions) ? data.survey_questions : []);
         }
 
@@ -270,19 +277,25 @@ export default function ProjectDetailScreen({
         {/* ── PERÍODO ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Período de Investigación</Text>
-          <View style={styles.datesRow}>
-            <View style={styles.datePill}>
-              <Ionicons name="play-outline" size={14} color={C.sage} />
-              <Text style={styles.dateText}>
-                Inicio: {new Date(detail.start_date).toLocaleDateString('es-VE', {
+          <View style={styles.periodRow}>
+            <View style={styles.periodBlockLeft}>
+              <Text style={styles.periodLabel}>Inicio</Text>
+              <Text style={styles.periodDateText}>
+                {new Date(detail.start_date).toLocaleDateString('es-VE', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </Text>
             </View>
-            <View style={styles.datePill}>
-              <Ionicons name="stop-outline" size={14} color={C.textColor} />
-              <Text style={styles.dateText}>
-                Cierre: {new Date(detail.end_date).toLocaleDateString('es-VE', {
+
+            <View style={styles.periodLineContainer}>
+              <View style={styles.periodLine} />
+              <Ionicons name="ellipse" size={6} color={C.sage} style={styles.periodLineDotRight} />
+            </View>
+
+            <View style={styles.periodBlockRight}>
+              <Text style={styles.periodLabel}>Cierre</Text>
+              <Text style={styles.periodDateText}>
+                {new Date(detail.end_date).toLocaleDateString('es-VE', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </Text>
@@ -291,7 +304,7 @@ export default function ProjectDetailScreen({
         </View>
 
         {/* ── ENCUESTAS EXPANDIBLES Y GOOGLE FORMS ── */}
-        {(questions.length > 0 || detail.tools_url || isEspecialista) && (
+        {(questions.length > 0 || detail.tools_url || true) && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.expandableHeader}
@@ -312,17 +325,15 @@ export default function ProjectDetailScreen({
             {surveysExpanded && (
               <View style={styles.expandedContent}>
                 {/* Enlace de Google Forms (Funcionalidad 6) */}
-                {detail.tools_url ? (
-                  <TouchableOpacity
-                    style={styles.googleFormBtn}
-                    onPress={() => Linking.openURL(detail.tools_url!)}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="document-text" size={20} color={C.white} />
-                    <Text style={styles.googleFormBtnText}>Responder en Google Forms</Text>
-                    <Ionicons name="open-outline" size={16} color={C.white} style={{ marginLeft: 'auto' }} />
-                  </TouchableOpacity>
-                ) : null}
+                <TouchableOpacity
+                  style={styles.googleFormBtnTextOnly}
+                  onPress={() => Linking.openURL(getGoogleFormUrl(detail.tools_url))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="link-outline" size={16} color={C.sage} />
+                  <Text style={styles.googleFormBtnTextOnlySpan}>Responder en Google Forms</Text>
+                  <Ionicons name="open-outline" size={14} color={C.sage} />
+                </TouchableOpacity>
 
                 {/* Preguntas locales de encuesta (Funcionalidad 4) */}
                 {questions.map((q: any, idx: number) => (
@@ -433,7 +444,7 @@ export default function ProjectDetailScreen({
                     onPress={() => {
                       setEditTitle(detail.title || '');
                       setEditDesc(detail.description || '');
-                      setEditToolsUrl(detail.tools_url || '');
+                      setEditToolsUrl(getGoogleFormUrl(detail.tools_url));
                       setEditQuestions(Array.isArray(detail.survey_questions) ? [...detail.survey_questions] : []);
                       setShowEditModal(true);
                     }}
@@ -510,7 +521,7 @@ export default function ProjectDetailScreen({
                 style={styles.textInput}
                 value={editToolsUrl}
                 onChangeText={setEditToolsUrl}
-                placeholder="https://docs.google.com/forms/d/..."
+                placeholder="https://forms.gle/XR7vbpTYwACYtyvf8"
                 autoCapitalize="none"
               />
 
@@ -578,7 +589,7 @@ export default function ProjectDetailScreen({
                     body: JSON.stringify({
                       title: editTitle.trim(),
                       description: editDesc.trim(),
-                      tools_url: editToolsUrl.trim() || null,
+                      tools_url: editToolsUrl.trim() || 'https://forms.gle/XR7vbpTYwACYtyvf8',
                       survey_questions: editQuestions,
                     }),
                   });
@@ -783,27 +794,47 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // ── Fechas ──
-  datesRow: {
+  // ── Fechas / Período ──
+  periodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingHorizontal: 2,
   },
-  datePill: {
+  periodBlockLeft: {
+    alignItems: 'flex-start',
+  },
+  periodBlockRight: {
+    alignItems: 'flex-end',
+  },
+  periodLabel: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: C.subText,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  periodDateText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: C.titleColor,
+  },
+  periodLineContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: C.cardBg,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: C.border,
+    marginHorizontal: 16,
+    paddingTop: 12,
   },
-  dateText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: C.textColor,
+  periodLine: {
+    flex: 1,
+    height: 1.5,
+    backgroundColor: '#C5C5C5',
+  },
+  periodLineDotRight: {
+    marginLeft: -4,
   },
 
   // ── Encuestas Expandibles ──
@@ -906,6 +937,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
     color: C.white,
+  },
+  googleFormBtnTextOnly: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 6,
+    marginBottom: 6,
+  },
+  googleFormBtnTextOnlySpan: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: C.sage,
+    textDecorationLine: 'underline',
   },
   surveyActionContainer: {
     gap: 10,

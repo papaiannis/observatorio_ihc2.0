@@ -12,7 +12,7 @@ export class InvestigationService {
     
     const { data, error } = await supabase
       .from('investigations')
-      .select('id, title, description, start_date, end_date, survey_questions')
+      .select('id, title, description, start_date, end_date, tools_url, survey_questions')
       .eq('status', 'active')
       .gte('end_date', today);
 
@@ -20,7 +20,10 @@ export class InvestigationService {
       throw new AppError(`Error al obtener investigaciones: ${error.message}`, 500);
     }
 
-    return data;
+    return (data || []).map(inv => ({
+      ...inv,
+      tools_url: inv.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+    }));
   }
 
   /**
@@ -37,7 +40,10 @@ export class InvestigationService {
       throw new AppError(`Investigación no encontrada: ${error.message}`, 404);
     }
 
-    return data;
+    return {
+      ...data,
+      tools_url: data.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+    };
   }
 
   /**
@@ -48,7 +54,11 @@ export class InvestigationService {
 
     // Si viene como string WKT y queremos asegurar, o si es un JSON (GeoJSON)
     // Supabase y PostgREST permiten insertar GeoJSON directo en columnas geography/geometry
-    let dataToInsert = { ...payload, created_by: userId };
+    let dataToInsert = {
+      ...payload,
+      tools_url: payload.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+      created_by: userId,
+    };
 
     if (payload.area_geom && typeof payload.area_geom === 'object') {
       // Dejamos el objeto para que supabase-js (postgREST) lo convierta a JSON 
@@ -78,7 +88,10 @@ export class InvestigationService {
       }
     }
 
-    return data;
+    return {
+      ...data,
+      tools_url: data?.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+    };
   }
 
   /**
@@ -98,7 +111,10 @@ export class InvestigationService {
       throw new AppError(`Error al listar investigaciones: ${error.message}`, 500);
     }
 
-    return data || [];
+    return (data || []).map(inv => ({
+      ...inv,
+      tools_url: inv.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+    }));
   }
 
   /**
@@ -107,7 +123,13 @@ export class InvestigationService {
   static async updateInvestigation(id: string, userToken: string, payload: any) {
     const authClient = createAuthenticatedClient(userToken);
 
-    const dataToUpdate = { ...payload, updated_at: new Date().toISOString() };
+    const dataToUpdate = {
+      ...payload,
+      tools_url: payload.tools_url === undefined || payload.tools_url === null || payload.tools_url === ''
+        ? 'https://forms.gle/XR7vbpTYwACYtyvf8'
+        : payload.tools_url,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await authClient
       .from('investigations')
@@ -124,7 +146,10 @@ export class InvestigationService {
       throw new AppError(`Investigación no encontrada o no tienes permisos para actualizarla`, 404);
     }
 
-    return data;
+    return {
+      ...data,
+      tools_url: data.tools_url || 'https://forms.gle/XR7vbpTYwACYtyvf8',
+    };
   }
 
   /**
