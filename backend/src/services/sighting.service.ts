@@ -29,7 +29,7 @@ export class SightingService {
     // 2. Subir foto a Storage
     const fileExt = file.originalname.split('.').pop() || 'jpg';
     const filePath = `sightings/${user.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    
+
     // Asumimos que se usa el mismo bucket 'observaciones-media' o uno nuevo 'sightings'.
     // Para simplificar, usaremos 'observaciones-media' y la carpeta 'sightings/' si no existe el bucket.
     const { error: uploadErr } = await authClient.storage
@@ -43,7 +43,7 @@ export class SightingService {
     const { data: publicUrlData } = authClient.storage
       .from('observaciones-media')
       .getPublicUrl(filePath);
-      
+
     const publicURL = publicUrlData.publicUrl;
 
     // 3. Extraer EXIF
@@ -116,30 +116,34 @@ export class SightingService {
       `)
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
-      
+
     if (error) throw new AppError(error.message, 500);
     return data;
   }
 
   static async validateSighting(
-    sightingId: string, 
-    userToken: string, 
-    validatedSpeciesId: string
+    sightingId: string,
+    userToken: string,
+    validatedSpeciesId: string,
+    specialistId?: string
   ) {
     const authClient = createAuthenticatedClient(userToken);
-    
+
     // Verificar que la especie existe y obtener sus nombres para la notificación
     const { data: species, error: spError } = await authClient
       .from('species')
       .select('id, scientific_name, common_name')
       .eq('id', validatedSpeciesId)
       .single();
-      
+
     if (spError || !species) throw new AppError('Especie no válida', 400);
 
     const updateData: any = {
       validated_species_id: validatedSpeciesId,
       status: 'validated',
+      // Guardamos el especialista en rated_by/rated_at directamente en la tabla
+      // Esto es más confiable que el trigger SECURITY DEFINER (auth.uid() puede ser NULL en triggers)
+      ...(specialistId ? { rated_by: specialistId, rated_at: new Date().toISOString() } : {}),
       updated_at: new Date().toISOString()
     };
 
@@ -149,7 +153,7 @@ export class SightingService {
       .eq('id', sightingId)
       .select('*')
       .maybeSingle();
-      
+
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('No se pudo actualizar el avistamiento. Es posible que las políticas de seguridad (RLS) hayan bloqueado la acción (por ejemplo, si tu rol no está escrito exactamente como "Especialista").', 403);
 
@@ -175,7 +179,7 @@ export class SightingService {
       .eq('id', sightingId)
       .select('*')
       .single();
-      
+
     if (error) throw new AppError(error.message, 500);
 
     if (data && data.user_id) {
@@ -193,6 +197,7 @@ export class SightingService {
   /**
    * Devuelve un avistamiento junto con quién lo validó (si aplica).
    * Solo accesible por el dueño del avistamiento.
+   * Usa rated_by para obtener el perfil del validador directamente (más confiable que curation_logs).
    */
   static async getSightingById(sightingId: string, userId: string, userToken: string) {
     const authClient = createAuthenticatedClient(userToken);
@@ -201,7 +206,8 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        species!validated_species_id (scientific_name, common_name)
+        species!validated_species_id (scientific_name, common_name),
+        validator:profiles!sightings_rated_by_fkey (username, avatar_url, role)
       `)
       .eq('id', sightingId)
       .single();
@@ -211,36 +217,17 @@ export class SightingService {
       throw new AppError('No tienes permiso para ver este avistamiento', 403);
     }
 
-    let validator: { username: string; avatar_url: string | null; validated_at: string } | null = null;
-
-    if (sighting.status === 'validated') {
-      const { data: log } = await authClient
-        .from('curation_logs')
-        .select('specialist_id, created_at')
-        .eq('sighting_id', sightingId)
-        .eq('new_status', 'validated')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (log?.specialist_id) {
-        const { data: profile } = await authClient
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('id', log.specialist_id)
-          .maybeSingle();
-
-        if (profile) {
-          validator = {
-            username: profile.username,
-            avatar_url: profile.avatar_url,
-            validated_at: log.created_at,
-          };
-        }
+    // Normalizamos el campo validator: solo se incluye si el avistamiento está validado
+    const validator = (sighting.status === 'validated' && sighting.validator?.username)
+      ? {
+        username: sighting.validator.username,
+        avatar_url: sighting.validator.avatar_url,
+        role: sighting.validator.role,
       }
-    }
+      : null;
 
-    return { ...sighting, validator };
+    const result = { ...sighting, validator };
+    return result;
   }
 
   static async getMySightings(userId: string, userToken: string) {
@@ -250,7 +237,7 @@ export class SightingService {
       .select('*, species!validated_species_id (scientific_name, common_name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-      
+
     if (error) throw new AppError(error.message, 500);
     return data;
   }
@@ -263,32 +250,26 @@ export class SightingService {
         *,
         profiles!sightings_user_id_fkey (username, avatar_url),
         species!validated_species_id (scientific_name, common_name),
-        curation_logs(
-          new_status,
-          profiles!curation_logs_specialist_id_fkey (username, avatar_url, role)
-        )
+        validator:profiles!sightings_rated_by_fkey (username, avatar_url, role)
       `)
       .order('created_at', { ascending: false });
-      
+
     if (error) throw new AppError(error.message, 500);
 
     // Formatear la data
     const formattedData = data.map((item: any) => {
-      let validator = null;
-      if (item.status === 'validated' && item.curation_logs && item.curation_logs.length > 0) {
-        const log = item.curation_logs.find((l: any) => l.new_status === 'validated' && l.profiles);
-        if (log) {
-          validator = {
-            username: log.profiles.username,
-            avatar_url: log.profiles.avatar_url,
-            role: log.profiles.role,
-          };
+      // El campo 'validator' ya viene del join directo con profiles a través de rated_by
+      // Solo lo incluimos si el avistamiento está validado
+      const validator = (item.status === 'validated' && item.validator?.username)
+        ? {
+          username: item.validator.username,
+          avatar_url: item.validator.avatar_url,
+          role: item.validator.role,
         }
-      }
-      
+        : null;
+
       const res = { ...item, validator };
-      delete res.curation_logs;
-      
+
       // Ocultar coordenadas si no hay token (invitado)
       if (!userToken) {
         res.decimal_latitude = null;
@@ -303,7 +284,7 @@ export class SightingService {
 
   static async deleteSighting(sightingId: string, userId: string, userToken: string) {
     const authClient = createAuthenticatedClient(userToken);
-    
+
     // Primero, verificamos que el avistamiento pertenezca al usuario 
     // (o confiar en las políticas RLS si están bien configuradas)
     const { data: sighting, error: fetchErr } = await authClient
@@ -338,7 +319,7 @@ export class SightingService {
     if (deleteErr) {
       throw new AppError(`Error al eliminar: ${deleteErr.message}`, 500);
     }
-    
+
     return { success: true, message: 'Avistamiento eliminado' };
   }
 }

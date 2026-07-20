@@ -87,7 +87,8 @@ export const validateSighting = async (req: Request, res: Response, next: NextFu
     const sighting = await SightingService.validateSighting(
       id as string,
       user.token,
-      validated_species_id
+      validated_species_id,
+      user.id   // ← guardamos el especialista en rated_by para mostrar en el detalle
     );
 
     res.json({ message: 'Avistamiento validado exitosamente', sighting });
