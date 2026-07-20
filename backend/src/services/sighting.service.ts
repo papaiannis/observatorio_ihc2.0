@@ -108,17 +108,37 @@ export class SightingService {
 
   static async getPendingSightings(userToken: string) {
     const authClient = createAuthenticatedClient(userToken);
-    const { data, error } = await authClient
+    const { data: sightingsData, error } = await authClient
       .from('sightings')
-      .select(`
-        *,
-        profiles!sightings_user_id_fkey (username, avatar_url)
-      `)
+      .select('*')
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
 
     if (error) throw new AppError(error.message, 500);
-    return data;
+
+    const userIds = new Set<string>();
+    sightingsData.forEach(item => {
+      if (item.user_id) userIds.add(item.user_id);
+    });
+
+    let profilesMap: Record<string, any> = {};
+    if (userIds.size > 0) {
+      const { data: profilesData } = await authClient
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', Array.from(userIds));
+        
+      if (profilesData) {
+        profilesData.forEach(p => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
+    return sightingsData.map(item => ({
+      ...item,
+      profiles: profilesMap[item.user_id] ? { username: profilesMap[item.user_id].username, avatar_url: profilesMap[item.user_id].avatar_url } : null
+    }));
   }
 
   static async validateSighting(
@@ -206,7 +226,7 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        species!validated_species_id (scientific_name, common_name)
+        species (scientific_name, common_name)
       `)
       .eq('id', sightingId)
       .single();
@@ -254,7 +274,7 @@ export class SightingService {
     const authClient = createAuthenticatedClient(userToken);
     const { data, error } = await authClient
       .from('sightings')
-      .select('*, species!validated_species_id (scientific_name, common_name)')
+      .select('*, species (scientific_name, common_name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -268,7 +288,7 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        species!validated_species_id (scientific_name, common_name)
+        species (scientific_name, common_name)
       `)
       .order('created_at', { ascending: false });
 

@@ -126,7 +126,7 @@ export async function exportProjectSightings(
       survey_answers,
       investigation_id,
       profiles!investigation_contributions_user_id_fkey(username),
-      species!validated_species_id(
+      species(
         scientific_name,
         common_name,
         kingdom,
@@ -201,7 +201,7 @@ export async function exportSingleSighting(
       created_at,
       status,
       photo_url,
-      species!validated_species_id(
+      species(
         scientific_name,
         common_name,
         kingdom,
@@ -278,7 +278,7 @@ export async function exportMySightings(
       created_at,
       status,
       photo_url,
-      species!validated_species_id(
+      species(
         scientific_name,
         common_name,
         kingdom,

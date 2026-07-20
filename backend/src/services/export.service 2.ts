@@ -87,9 +87,10 @@ export const exportDarwinCoreCSV = async (investigationId?: string): Promise<str
       decimal_longitude,
       preliminary_species,
       created_at,
-      profiles!investigation_contributions_user_id_fkey!inner(username),
-      species!validated_species_id(
+      profiles!investigation_contributions_user_id_fkey(username),
+      species(
         scientific_name,
+        common_name,
         kingdom,
         phylum,
         class_column,
