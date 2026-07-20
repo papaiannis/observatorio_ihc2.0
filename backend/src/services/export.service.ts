@@ -65,10 +65,10 @@ interface DarwinCoreRecord {
   'dwc:recordedBy': string;
   'dwc:occurrenceStatus': string;
   'dwc:basisOfRecord': string;
-  'gaia:status': string;
-  'gaia:photoUrl': string;
-  'gaia:projectId'?: string | undefined;
-  'gaia:surveyAnswers'?: string | undefined;
+  'enu:status': string;
+  'enu:photoUrl': string;
+  'enu:projectId'?: string | undefined;
+  'enu:surveyAnswers'?: string | undefined;
 }
 
 function buildCsv(records: any[]): string {
@@ -92,7 +92,7 @@ function buildCsv(records: any[]): string {
   return [headerLine, ...rows].join('\r\n');
 }
 
-function buildXlsx(records: any[], sheetName: string = 'Dataset GAIA'): Buffer {
+function buildXlsx(records: any[], sheetName: string = 'Dataset ENÚ'): Buffer {
   const worksheet = XLSX.utils.json_to_sheet(records);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -170,14 +170,14 @@ export async function exportProjectSightings(
     'dwc:recordedBy': row.profiles?.username ?? 'Anónimo',
     'dwc:occurrenceStatus': 'present',
     'dwc:basisOfRecord': 'HumanObservation',
-    'gaia:status': row.contribution_status || 'pending',
-    'gaia:photoUrl': row.photo_url || '',
-    'gaia:projectId': row.investigation_id || undefined,
-    'gaia:surveyAnswers': row.survey_answers ? JSON.stringify(row.survey_answers) : '',
+    'enu:status': row.contribution_status || 'pending',
+    'enu:photoUrl': row.photo_url || '',
+    'enu:projectId': row.investigation_id || undefined,
+    'enu:surveyAnswers': row.survey_answers ? JSON.stringify(row.survey_answers) : '',
   }));
 
   if (format === 'xlsx') {
-    return buildXlsx(mapped);
+    return buildXlsx(mapped, 'Proyecto_ENÚ');
   }
   return buildCsv(mapped);
 }
@@ -254,7 +254,7 @@ export async function exportSingleSighting(
   }];
 
   if (format === 'xlsx') {
-    return buildXlsx(mapped, 'Sighting_DarwinCore');
+    return buildXlsx(mapped, 'Avistamiento_ENÚ');
   }
   return buildCsv(mapped);
 }
@@ -341,7 +341,7 @@ export async function exportMySightings(
   }));
 
   if (format === 'xlsx') {
-    return buildXlsx(mapped, 'MySightings_DarwinCore');
+    return buildXlsx(mapped, 'Mis_Avistamientos_ENÚ');
   }
   return buildCsv(mapped);
 }
