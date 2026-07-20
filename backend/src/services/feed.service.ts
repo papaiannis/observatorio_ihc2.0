@@ -36,8 +36,9 @@ export const getFeed = async (isGuest: boolean): Promise<FeedItem[]> => {
         created_at,
         contribution_status,
         investigation_id,
-        profiles (username, avatar_url),
-        species (scientific_name, common_name)
+        profiles!investigation_contributions_user_id_fkey (username, avatar_url),
+        species (scientific_name, common_name),
+        validator:profiles!investigation_contributions_rated_by_fkey (username, avatar_url, role)
       `)
       .in('contribution_status', ['validated', 'pending', 'in_review'])
       .order('created_at', { ascending: false })

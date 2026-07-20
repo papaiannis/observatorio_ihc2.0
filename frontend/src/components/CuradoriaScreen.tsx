@@ -214,12 +214,17 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
   // ── Abrir detalle de un aporte ────────────────────────────────────────────
   const openDetail = (contribution: Contribution) => {
     setSelected(contribution);
-    setSpeciesQuery(contribution.preliminary_species ?? '');
-    setSpeciesResults([]);
-    setSelectedSpecies(null);
     setRating(0);
     setComment('');
     setView('detail');
+
+    if (contribution.preliminary_species) {
+      searchSpecies(contribution.preliminary_species);
+    } else {
+      setSpeciesQuery('');
+      setSpeciesResults([]);
+      setSelectedSpecies(null);
+    }
   };
 
   // ── Validar aporte ────────────────────────────────────────────────────────
@@ -242,8 +247,11 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
     try {
       const { token } = await authStore.getSession();
       const body: Record<string, unknown> = { validated_species_id: selectedSpecies.id };
-      if (comment.trim()) body.expert_comment = comment.trim();
-      if (rating > 0) body.expert_rating = rating;
+      
+      if (isContribution) {
+        if (comment.trim()) body.expert_comment = comment.trim();
+        if (rating > 0) body.expert_rating = rating;
+      }
 
       const res = await fetch(`${API_URL}/api/v1/${endpointBase}/${selected.id}/validate`, {
         method: 'PATCH',
@@ -465,48 +473,52 @@ export default function CuradoriaScreen({ onBack }: CuradoriaScreenProps) {
             )}
           </View>
 
-          {/* Clic 3: Calificación de estrellas 1-5 */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Calidad del Aporte</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => setRating(star)}
-                  style={styles.starBtn}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={star <= rating ? 'star' : 'star-outline'}
-                    size={36}
-                    color={star <= rating ? C.yellow : C.gray}
-                  />
-                </TouchableOpacity>
-              ))}
+          {/* Clic 3: Calificación de estrellas 1-5 (solo contribuciones) */}
+          {isContribution && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Calidad del Aporte</Text>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => setRating(star)}
+                    style={styles.starBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={star <= rating ? 'star' : 'star-outline'}
+                      size={36}
+                      color={star <= rating ? C.yellow : C.gray}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.ratingLabel}>
+                {rating === 0 ? 'Sin calificar' :
+                 rating === 1 ? 'Insuficiente' :
+                 rating === 2 ? 'Regular' :
+                 rating === 3 ? 'Bueno' :
+                 rating === 4 ? 'Muy bueno' : 'Excelente'}
+              </Text>
             </View>
-            <Text style={styles.ratingLabel}>
-              {rating === 0 ? 'Sin calificar' :
-               rating === 1 ? 'Insuficiente' :
-               rating === 2 ? 'Regular' :
-               rating === 3 ? 'Bueno' :
-               rating === 4 ? 'Muy bueno' : 'Excelente'}
-            </Text>
-          </View>
+          )}
 
-          {/* Comentario del especialista */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Comentario del Especialista</Text>
-            <TextInput
-              style={styles.commentInput}
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Observaciones o correcciones sobre la identificación..."
-              placeholderTextColor={C.lightText}
-              multiline
-              maxLength={1000}
-            />
-            <Text style={styles.charCount}>{comment.length}/1000</Text>
-          </View>
+          {/* Comentario del especialista (solo contribuciones) */}
+          {isContribution && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Comentario del Especialista</Text>
+              <TextInput
+                style={styles.commentInput}
+                value={comment}
+                onChangeText={setComment}
+                placeholder="Observaciones o correcciones sobre la identificación..."
+                placeholderTextColor={C.lightText}
+                multiline
+                maxLength={1000}
+              />
+              <Text style={styles.charCount}>{comment.length}/1000</Text>
+            </View>
+          )}
 
           {/* Clic 4: Validar */}
           <View style={styles.actionRow}>

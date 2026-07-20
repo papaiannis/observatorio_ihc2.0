@@ -123,11 +123,8 @@ export class SightingService {
 
   static async validateSighting(
     sightingId: string, 
-    userId: string, 
     userToken: string, 
-    validatedSpeciesId: string,
-    expertComment?: string,
-    expertRating?: number
+    validatedSpeciesId: string
   ) {
     const authClient = createAuthenticatedClient(userToken);
     
@@ -146,21 +143,15 @@ export class SightingService {
       updated_at: new Date().toISOString()
     };
 
-    if (expertComment) updateData.expert_comment = expertComment;
-    if (expertRating) updateData.expert_rating = expertRating;
-    if (expertComment || expertRating) {
-      updateData.rated_by = userId;
-      updateData.rated_at = new Date().toISOString();
-    }
-
-    const { data, error } = await supabase
+    const { data, error } = await authClient
       .from('sightings')
       .update(updateData)
       .eq('id', sightingId)
       .select('*')
-      .single();
+      .maybeSingle();
       
     if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('No se pudo actualizar el avistamiento. Es posible que las políticas de seguridad (RLS) hayan bloqueado la acción (por ejemplo, si tu rol no está escrito exactamente como "Especialista").', 403);
 
     if (data && data.user_id) {
       const speciesName = species.scientific_name || species.common_name || data.preliminary_species || 'Especie identificada';
@@ -271,22 +262,43 @@ export class SightingService {
       .select(`
         *,
         profiles!sightings_user_id_fkey (username, avatar_url),
-        species!validated_species_id (scientific_name, common_name)
+        species!validated_species_id (scientific_name, common_name),
+        curation_logs(
+          new_status,
+          profiles!curation_logs_specialist_id_fkey (username, avatar_url, role)
+        )
       `)
       .order('created_at', { ascending: false });
       
     if (error) throw new AppError(error.message, 500);
 
-    // Ocultar coordenadas si no hay token (invitado)
-    if (!userToken) {
-      return data.map((item: any) => ({
-        ...item,
-        decimal_latitude: null,
-        decimal_longitude: null,
-        geom: null
-      }));
-    }
-    return data;
+    // Formatear la data
+    const formattedData = data.map((item: any) => {
+      let validator = null;
+      if (item.status === 'validated' && item.curation_logs && item.curation_logs.length > 0) {
+        const log = item.curation_logs.find((l: any) => l.new_status === 'validated' && l.profiles);
+        if (log) {
+          validator = {
+            username: log.profiles.username,
+            avatar_url: log.profiles.avatar_url,
+            role: log.profiles.role,
+          };
+        }
+      }
+      
+      const res = { ...item, validator };
+      delete res.curation_logs;
+      
+      // Ocultar coordenadas si no hay token (invitado)
+      if (!userToken) {
+        res.decimal_latitude = null;
+        res.decimal_longitude = null;
+        res.geom = null;
+      }
+      return res;
+    });
+
+    return formattedData;
   }
 
   static async deleteSighting(sightingId: string, userId: string, userToken: string) {

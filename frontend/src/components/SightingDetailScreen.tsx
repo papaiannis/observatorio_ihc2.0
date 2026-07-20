@@ -64,6 +64,11 @@ interface Sighting {
   profiles?: { username: string; avatar_url?: string };
   species?: { scientific_name: string; common_name?: string };
   user_id?: string;
+  validator?: {
+    username: string;
+    avatar_url?: string;
+    role?: string;
+  };
 }
 
 interface SightingDetailScreenProps {
@@ -342,13 +347,13 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
             )}
 
             {/* Validado por (Especialista) */}
-            {sighting.status === 'validated' && (
+            {sighting.status === 'validated' && sighting.validator && (
               <View style={styles.validatorBox}>
                 <Ionicons name="shield-checkmark" size={22} color={C.green} />
                 <View style={styles.validatorMeta}>
                   <Text style={styles.validatorTitle}>Validación Científica</Text>
                   <Text style={styles.validatorName}>
-                    Validado por: <Text style={styles.boldText}>Dra. Elena Rossi</Text> (Especialista en Botánica)
+                    Validado por: <Text style={styles.boldText}>@{sighting.validator.username}</Text> {sighting.validator.role ? `(${sighting.validator.role})` : '(Especialista)'}
                   </Text>
                 </View>
               </View>

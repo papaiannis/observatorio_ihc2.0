@@ -17,9 +17,7 @@ const sightingSchema = z.object({
 });
 
 const validateSchema = z.object({
-  validated_species_id: z.string().uuid('El ID de especie debe ser un UUID válido'),
-  expert_comment: z.string().max(1000).optional(),
-  expert_rating: z.coerce.number().int().min(1).max(5).optional(),
+  validated_species_id: z.string().uuid('El ID de especie debe ser un UUID válido')
 });
 
 const appealSchema = z.object({
@@ -85,14 +83,11 @@ export const validateSighting = async (req: Request, res: Response, next: NextFu
       throw new AppError(`Datos inválidos: ${parseResult.error.message}`, 400);
     }
 
-    const { validated_species_id, expert_comment, expert_rating } = parseResult.data;
+    const { validated_species_id } = parseResult.data;
     const sighting = await SightingService.validateSighting(
       id as string,
-      user.id,
       user.token,
-      validated_species_id,
-      expert_comment,
-      expert_rating
+      validated_species_id
     );
 
     res.json({ message: 'Avistamiento validado exitosamente', sighting });
