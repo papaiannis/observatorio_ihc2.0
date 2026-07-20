@@ -70,9 +70,11 @@ interface ComunidadTabProps {
   isGuest?: boolean;
   /** rol del usuario: 'entusiasta' | 'especialista' | 'invitado' */
   userRole?: string;
+  /** texto de búsqueda (especie o usuario); filtra localmente la lista ya cargada */
+  searchQuery?: string;
 }
 
-export default function ComunidadTab({ onSightingPress, isGuest = false, userRole = 'invitado' }: ComunidadTabProps) {
+export default function ComunidadTab({ onSightingPress, isGuest = false, userRole = 'invitado', searchQuery }: ComunidadTabProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [tempFilters, setTempFilters] = useState<FilterType[]>(['Todas']);
   const [appliedFilters, setAppliedFilters] = useState<FilterType[]>(['Todas']);
@@ -180,13 +182,29 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
   });
 
   // Aplicar filtros
+  const normalizedQuery = searchQuery?.trim().toLowerCase() ?? '';
   const filteredSightings = sightings.filter((s) => {
     if (hiddenIds.has(s.id)) return false;
-    if (appliedFilters.includes('Todas')) return true;
-    return appliedFilters.some((f) => {
-      const targetStatus = FILTER_STATUS[f];
-      return targetStatus ? s.status === targetStatus : true;
-    });
+    if (!appliedFilters.includes('Todas')) {
+      const matchesStatus = appliedFilters.some((f) => {
+        const targetStatus = FILTER_STATUS[f];
+        return targetStatus ? s.status === targetStatus : true;
+      });
+      if (!matchesStatus) return false;
+    }
+    if (normalizedQuery) {
+      const haystack = [
+        s.species?.common_name,
+        s.species?.scientific_name,
+        s.preliminary_species,
+        s.profiles?.username,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(normalizedQuery)) return false;
+    }
+    return true;
   });
 
   const renderSightingCard = ({ item }: { item: Sighting }) => {
@@ -347,11 +365,15 @@ export default function ComunidadTab({ onSightingPress, isGuest = false, userRol
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.sage} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aún no hay avistamientos</Text>
-              <TouchableOpacity style={styles.registerBtn} activeOpacity={0.85}>
-                <Ionicons name="add-circle-outline" size={18} color={C.white} style={{ marginRight: 8 }} />
-                <Text style={styles.registerBtnText}>Registrar avistamiento</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptyText}>
+                {normalizedQuery ? 'No se encontraron avistamientos' : 'Aún no hay avistamientos'}
+              </Text>
+              {!normalizedQuery && (
+                <TouchableOpacity style={styles.registerBtn} activeOpacity={0.85}>
+                  <Ionicons name="add-circle-outline" size={18} color={C.white} style={{ marginRight: 8 }} />
+                  <Text style={styles.registerBtnText}>Registrar avistamiento</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />

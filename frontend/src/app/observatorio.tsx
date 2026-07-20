@@ -77,6 +77,7 @@ export default function ObservatorioScreen() {
   const [trackingSighting, setTrackingSighting] = useState<TrackingSighting | null>(null);
   const [showCuraduria, setShowCuraduria] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [cameraMounted, setCameraMounted] = useState(false);
   const [selectedSighting, setSelectedSighting] = useState<any | null>(null);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
@@ -318,6 +319,8 @@ export default function ObservatorioScreen() {
               setActiveTab('crear');
             }
           }}
+          activeTab={activeTab}
+          onSearchQueryChange={setSearchQuery}
         />
 
         {/* ── CONTENIDO CON TRANSICIÓN DE HOJA HORIZONTAL ── */}
@@ -357,9 +360,9 @@ export default function ObservatorioScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ width: width * 4 }}
             >
-              <View style={{ width }}><ObservatorioTab onSightingPress={setSelectedSighting} /></View>
-              <View style={{ width }}><DocumentosTab onProjectPress={setSelectedProject} isGuest={isGuest} /></View>
-              <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} isGuest={isGuest} userRole={userRole} /></View>
+              <View style={{ width }}><ObservatorioTab onSightingPress={setSelectedSighting} searchQuery={searchQuery} /></View>
+              <View style={{ width }}><DocumentosTab onProjectPress={setSelectedProject} isGuest={isGuest} searchQuery={searchQuery} /></View>
+              <View style={{ width }}><ComunidadTab onSightingPress={setSelectedSighting} isGuest={isGuest} userRole={userRole} searchQuery={searchQuery} /></View>
               <View style={{ width }}><ConfiguracionTab /></View>
             </ScrollView>
           )}

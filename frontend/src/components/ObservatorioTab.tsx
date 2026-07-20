@@ -30,9 +30,11 @@ interface Sighting {
 
 interface ObservatorioTabProps {
   onSightingPress?: (sighting: Sighting) => void;
+  /** texto de búsqueda (especie o usuario); filtra localmente la lista ya cargada */
+  searchQuery?: string;
 }
 
-export default function ObservatorioTab({ onSightingPress }: ObservatorioTabProps) {
+export default function ObservatorioTab({ onSightingPress, searchQuery }: ObservatorioTabProps) {
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,6 +70,24 @@ export default function ObservatorioTab({ onSightingPress }: ObservatorioTabProp
   useEffect(() => { fetchObservatory(); }, [fetchObservatory]);
 
   const onRefresh = () => { setRefreshing(true); fetchObservatory(); };
+
+  const normalizedQuery = searchQuery?.trim().toLowerCase() ?? '';
+  const displayedSightings = normalizedQuery
+    ? sightings.filter((s) => {
+        const speciesObj = Array.isArray(s.species) ? s.species[0] : s.species;
+        const username = Array.isArray(s.profiles) ? s.profiles[0]?.username : s.profiles?.username;
+        const haystack = [
+          speciesObj?.common_name,
+          speciesObj?.scientific_name,
+          s.preliminary_species,
+          username,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+    : sightings;
 
   const renderSightingCard = ({ item }: { item: Sighting }) => {
     const dateStr = new Date(item.observed_at).toLocaleDateString('es-VE', {
@@ -141,7 +161,7 @@ export default function ObservatorioTab({ onSightingPress }: ObservatorioTabProp
         <ObservatorioSkeleton />
       ) : (
         <FlatList
-          data={sightings}
+          data={displayedSightings}
           keyExtractor={(item) => item.id}
           renderItem={renderSightingCard}
           numColumns={2}
@@ -151,7 +171,9 @@ export default function ObservatorioTab({ onSightingPress }: ObservatorioTabProp
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.sage} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aún no hay avistamientos verificados</Text>
+              <Text style={styles.emptyText}>
+                {normalizedQuery ? 'No se encontraron avistamientos' : 'Aún no hay avistamientos verificados'}
+              </Text>
             </View>
           }
         />

@@ -61,9 +61,12 @@ interface Investigation {
 export default function DocumentosTab({
   onProjectPress,
   isGuest = false,
+  searchQuery,
 }: {
   onProjectPress?: (project: Investigation) => void;
   isGuest?: boolean;
+  /** texto de búsqueda (título o descripción); filtra localmente la lista ya cargada */
+  searchQuery?: string;
 }) {
   const [projects, setProjects] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +74,15 @@ export default function DocumentosTab({
   const [activeIndex, setActiveIndex] = useState(0);
   const [likedProjects, setLikedProjects] = useState<Record<string, boolean>>({});
   const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Al escribir/cambiar la búsqueda, la lista visible cambia de tamaño: volvemos
+  // el carrusel al inicio para que no quede desplazado más allá del nuevo contenido
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+    scrollX.setValue(0);
+    setActiveIndex(0);
+  }, [searchQuery]);
 
   /** Guard: muestra alert de login para invitados */
   const handleProjectPress = (project: Investigation) => {
@@ -111,6 +123,14 @@ export default function DocumentosTab({
     setRefreshing(true);
     fetchProjects();
   };
+
+  const normalizedQuery = searchQuery?.trim().toLowerCase() ?? '';
+  const displayedProjects = normalizedQuery
+    ? projects.filter((p) => {
+        const haystack = [p.title, p.description].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+    : projects;
 
   const toggleLike = (projectId: string) => {
     setLikedProjects((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
@@ -205,7 +225,7 @@ export default function DocumentosTab({
 
   const renderDots = () => (
     <View style={styles.dotsRow}>
-      {projects.map((_, i) => {
+      {displayedProjects.map((_, i) => {
         const opacity = scrollX.interpolate({
           inputRange: [(i - 1) * SNAP_INTERVAL, i * SNAP_INTERVAL, (i + 1) * SNAP_INTERVAL],
           outputRange: [0.35, 1, 0.35],
@@ -233,14 +253,17 @@ export default function DocumentosTab({
       {/* ── Contenido ── */}
       {loading ? (
         <ProyectosCarouselSkeleton />
-      ) : projects.length === 0 ? (
+      ) : displayedProjects.length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="folder-open-outline" size={48} color={C.gray} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyText}>No hay proyectos activos en este momento</Text>
+          <Text style={styles.emptyText}>
+            {normalizedQuery ? 'No se encontraron proyectos' : 'No hay proyectos activos en este momento'}
+          </Text>
         </View>
       ) : (
         <>
           <ScrollView
+            ref={scrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             snapToInterval={SNAP_INTERVAL}
@@ -259,10 +282,10 @@ export default function DocumentosTab({
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.sage} />
             }
           >
-            {projects.map((item, index) => renderCard(item, index))}
+            {displayedProjects.map((item, index) => renderCard(item, index))}
           </ScrollView>
 
-          {projects.length > 1 && renderDots()}
+          {displayedProjects.length > 1 && renderDots()}
         </>
       )}
     </View>
