@@ -307,7 +307,9 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
               </Text>
               
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ExportButton mode="sighting" id={sightingId} buttonVariant="icon" />
+                {userRole?.toLowerCase() === 'especialista' && (
+                  <ExportButton mode="sighting" id={sightingId} buttonVariant="icon" />
+                )}
                 <TouchableOpacity
                   style={styles.likeBtn}
                   onPress={handleToggleLike}

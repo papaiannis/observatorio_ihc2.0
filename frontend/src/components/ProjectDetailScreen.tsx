@@ -246,18 +246,20 @@ export default function ProjectDetailScreen({
         </View>
 
         {/* ── BOTÓN DE EXPORTACIÓN DEL PROYECTO (Dataset Científico) ── */}
-        <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-          <View style={{ flex: 1, marginRight: 10 }}>
-            <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>Dataset del Proyecto</Text>
-            <Text style={{ fontSize: 12, color: C.textColor, opacity: 0.8 }}>Descarga todas las observaciones o solo las validadas en CSV/Excel</Text>
+        {isEspecialista && (
+          <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>Dataset del Proyecto</Text>
+              <Text style={{ fontSize: 12, color: C.textColor, opacity: 0.8 }}>Descarga todas las observaciones o solo las validadas en CSV/Excel</Text>
+            </View>
+            <ExportButton
+              mode="project"
+              id={project.id}
+              buttonVariant="pill"
+              label="Exportar"
+            />
           </View>
-          <ExportButton
-            mode="project"
-            id={project.id}
-            buttonVariant="pill"
-            label="Exportar"
-          />
-        </View>
+        )}
 
         {/* ── DESCRIPCIÓN ── */}
         <View style={styles.section}>

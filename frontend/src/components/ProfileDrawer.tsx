@@ -465,7 +465,9 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             <Ionicons name="arrow-back" size={22} color={C.earth} />
           </TouchableOpacity>
           <Text style={[styles.subTitle, { flex: 1 }]}>Mis Avistamientos</Text>
-          <ExportButton mode="my_sightings" buttonVariant="icon" />
+          {userRole?.toLowerCase() === 'especialista' && (
+            <ExportButton mode="my_sightings" buttonVariant="icon" />
+          )}
         </View>
 
         {loadingSightings ? (
@@ -842,13 +844,15 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
           </>
         )}
 
-        <View style={styles.menuSection}>
-          <ExportButton
-            mode="my_sightings"
-            buttonVariant="drawerItem"
-            label="Exportar mis datos (CSV/Excel)"
-          />
-        </View>
+        {userRole?.toLowerCase() === 'especialista' && (
+          <View style={styles.menuSection}>
+            <ExportButton
+              mode="my_sightings"
+              buttonVariant="drawerItem"
+              label="Exportar mis datos (CSV/Excel)"
+            />
+          </View>
+        )}
 
         <View style={styles.divider} />
 
