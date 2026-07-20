@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { authStore } from '../utils/authStore';
 import { photoStore, StoredPhoto } from '../utils/photoStore';
+import ExportButton from './ExportButton';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
@@ -463,7 +464,8 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
           <TouchableOpacity onPress={() => setView('home')} style={styles.subBackBtn}>
             <Ionicons name="arrow-back" size={22} color={C.earth} />
           </TouchableOpacity>
-          <Text style={styles.subTitle}>Mis Avistamientos</Text>
+          <Text style={[styles.subTitle, { flex: 1 }]}>Mis Avistamientos</Text>
+          <ExportButton mode="my_sightings" buttonVariant="icon" />
         </View>
 
         {loadingSightings ? (
@@ -839,6 +841,14 @@ export default function ProfileDrawer({ onClose, onNavigate, isGuest = false, us
             </View>
           </>
         )}
+
+        <View style={styles.menuSection}>
+          <ExportButton
+            mode="my_sightings"
+            buttonVariant="drawerItem"
+            label="Exportar mis datos (CSV/Excel)"
+          />
+        </View>
 
         <View style={styles.divider} />
 

@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../utils/authStore';
 import type { Investigation } from './ProjectListScreen';
 import { ProjectDetailSkeleton } from './Skeleton';
+import ExportButton from './ExportButton';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
@@ -242,6 +243,20 @@ export default function ProjectDetailScreen({
             <Text style={styles.metricDaysText}>Dias </Text>
             <Text style={styles.metricNumberText}>{daysActive}</Text>
           </Text>
+        </View>
+
+        {/* ── BOTÓN DE EXPORTACIÓN DEL PROYECTO (Dataset Científico) ── */}
+        <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>Dataset del Proyecto</Text>
+            <Text style={{ fontSize: 12, color: C.textColor, opacity: 0.8 }}>Descarga todas las observaciones o solo las validadas en CSV/Excel</Text>
+          </View>
+          <ExportButton
+            mode="project"
+            id={project.id}
+            buttonVariant="pill"
+            label="Exportar"
+          />
         </View>
 
         {/* ── DESCRIPCIÓN ── */}

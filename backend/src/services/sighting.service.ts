@@ -206,8 +206,7 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        species!validated_species_id (scientific_name, common_name),
-        validator:profiles!sightings_rated_by_fkey (username, avatar_url, role)
+        species!validated_species_id (scientific_name, common_name)
       `)
       .eq('id', sightingId)
       .single();
@@ -217,16 +216,37 @@ export class SightingService {
       throw new AppError('No tienes permiso para ver este avistamiento', 403);
     }
 
-    // Normalizamos el campo validator: solo se incluye si el avistamiento está validado
-    const validator = (sighting.status === 'validated' && sighting.validator?.username)
-      ? {
-        username: sighting.validator.username,
-        avatar_url: sighting.validator.avatar_url,
-        role: sighting.validator.role,
-      }
-      : null;
+    let validator = null;
+    if (sighting.status === 'validated' && sighting.rated_by) {
+      const { data: valProfile } = await authClient
+        .from('profiles')
+        .select('username, avatar_url, role')
+        .eq('id', sighting.rated_by)
+        .maybeSingle();
 
-    const result = { ...sighting, validator };
+      if (valProfile?.username) {
+        validator = {
+          username: valProfile.username,
+          avatar_url: valProfile.avatar_url,
+          role: valProfile.role,
+        };
+      }
+    }
+
+    let profiles = null;
+    if (sighting.user_id) {
+      const { data: userProfile } = await authClient
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', sighting.user_id)
+        .maybeSingle();
+
+      if (userProfile) {
+        profiles = userProfile;
+      }
+    }
+
+    const result = { ...sighting, validator, profiles };
     return result;
   }
 
@@ -248,29 +268,50 @@ export class SightingService {
       .from('sightings')
       .select(`
         *,
-        profiles!sightings_user_id_fkey (username, avatar_url),
-        species!validated_species_id (scientific_name, common_name),
-        validator:profiles!sightings_rated_by_fkey (username, avatar_url, role)
+        species!validated_species_id (scientific_name, common_name)
       `)
       .order('created_at', { ascending: false });
 
     if (error) throw new AppError(error.message, 500);
 
-    // Formatear la data
-    const formattedData = data.map((item: any) => {
-      // El campo 'validator' ya viene del join directo con profiles a través de rated_by
-      // Solo lo incluimos si el avistamiento está validado
-      const validator = (item.status === 'validated' && item.validator?.username)
+    const items = data || [];
+    const userIds = new Set<string>();
+    items.forEach((item: any) => {
+      if (item.user_id) userIds.add(item.user_id);
+      if (item.rated_by) userIds.add(item.rated_by);
+    });
+
+    const profilesMap = new Map<string, any>();
+    if (userIds.size > 0) {
+      const { data: profilesData } = await client
+        .from('profiles')
+        .select('id, username, avatar_url, role')
+        .in('id', Array.from(userIds));
+
+      (profilesData || []).forEach((p: any) => {
+        profilesMap.set(p.id, p);
+      });
+    }
+
+    const formattedData = items.map((item: any) => {
+      const userProfile = item.user_id ? profilesMap.get(item.user_id) : null;
+      const valProfile = item.rated_by ? profilesMap.get(item.rated_by) : null;
+
+      const validator = (item.status === 'validated' && valProfile?.username)
         ? {
-          username: item.validator.username,
-          avatar_url: item.validator.avatar_url,
-          role: item.validator.role,
+          username: valProfile.username,
+          avatar_url: valProfile.avatar_url,
+          role: valProfile.role,
         }
         : null;
 
-      const res = { ...item, validator };
+      const profiles = userProfile ? {
+        username: userProfile.username,
+        avatar_url: userProfile.avatar_url,
+      } : null;
 
-      // Ocultar coordenadas si no hay token (invitado)
+      const res = { ...item, validator, profiles };
+
       if (!userToken) {
         res.decimal_latitude = null;
         res.decimal_longitude = null;

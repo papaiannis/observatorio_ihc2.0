@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authStore } from '../utils/authStore';
 import AppealSheet from './AppealSheet';
+import ExportButton from './ExportButton';
 
 const { width, height } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://ihcobservatorio2-202625.onrender.com';
@@ -305,19 +306,21 @@ export default function SightingDetailScreen({ sightingId, initialSighting, onBa
                 {showSpeciesName ? speciesObj.common_name || speciesObj.scientific_name : sighting.preliminary_species || 'Especie no identificada'}
               </Text>
               
-              {/* Botón de Like */}
-              <TouchableOpacity
-                style={styles.likeBtn}
-                onPress={handleToggleLike}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={liked ? 'heart' : 'heart-outline'}
-                  size={26}
-                  color={liked ? C.red : C.gray}
-                />
-                <Text style={styles.likeCountText}>{likeCount}</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ExportButton mode="sighting" id={sightingId} buttonVariant="icon" />
+                <TouchableOpacity
+                  style={styles.likeBtn}
+                  onPress={handleToggleLike}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={liked ? 'heart' : 'heart-outline'}
+                    size={26}
+                    color={liked ? C.red : C.gray}
+                  />
+                  <Text style={styles.likeCountText}>{likeCount}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {showSpeciesName && (

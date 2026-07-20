@@ -81,7 +81,7 @@ export const getObservatory = async (isGuest: boolean): Promise<FeedItem[]> => {
         created_at,
         contribution_status,
         investigation_id,
-        profiles (username, avatar_url),
+        profiles!investigation_contributions_user_id_fkey (username, avatar_url),
         species (scientific_name, common_name)
       `)
       .eq('contribution_status', 'validated')
